@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken';
 import oracledb from 'oracledb';
-import { getConnection } from '../Db/db.js';
+import { getConnection } from '../Db/Db.js';
 
-const authenticateToken = async (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
     try {
         const token = req.cookies.token;
         
@@ -32,7 +32,7 @@ const authenticateToken = async (req, res, next) => {
             });
         }
         
-        req.user = result.rows[0]; // Now you have req.user.ID
+        req.user = result.rows[0]; // Now you have user
         next();
         
     } catch (error) {

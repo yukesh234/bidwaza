@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import oracledb from 'oracledb';
-import { getConnection } from '../Db/db.js';
+import { getConnection } from '../Db/Db.js';
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 
@@ -131,7 +131,7 @@ async function login  (req, res)  {
 
     // Generate jwt
     const token = jwt.sign(
-      {  id: user.user.ID,
+      {  id: user.ID,
         email: user.EMAIL },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }

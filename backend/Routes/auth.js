@@ -1,8 +1,4 @@
 import express from 'express';
-import bcrypt from 'bcryptjs';
-import oracledb from 'oracledb';
-import { getConnection } from "../Db/db.js";
-import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import authcontroller from '../Controller/auth.Controller.js'
 
