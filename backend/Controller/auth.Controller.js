@@ -63,7 +63,7 @@ async function register(req, res) {
         email 
       },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
     
     res.cookie('token', token, { httpOnly: true });
@@ -134,7 +134,7 @@ async function login  (req, res)  {
       {  id: user.ID,
         email: user.EMAIL },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     res.cookie('token', token, { httpOnly: true });
@@ -247,6 +247,66 @@ async function verifyEmailCode(req, res) {
   }
 }
 
+export async function updatePassword(req, res) {
+  let connection;
+  try {
+    const { currentPassword, newpassword } = req.body;
+
+    // Validate fields
+    if ([currentPassword, newpassword].some((field) => !field || field.trim() === "")) {
+      return res.status(400).json({
+        success: false,
+        message: "Fields cannot be empty",
+      });
+    }
+
+    const userId = req.user.ID;
+    connection = await getConnection();
+
+    // Fetch user
+    const result = await connection.execute(
+      `SELECT password FROM users WHERE id = :id`,
+      { id: userId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const user = result.rows[0];
+
+    // Compare password
+    const isMatch = await bcrypt.compare(currentPassword, user.PASSWORD);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newpassword, 10);
+
+    // Update DB
+    await connection.execute(
+      `UPDATE users SET password = :password WHERE id = :id`,
+      { password: hashedPassword, id: userId },
+      { autoCommit: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.error("update password error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error while changing the password",
+    });
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
 export default {
   register,
   login,
@@ -255,4 +315,5 @@ export default {
   sendVerificationCode,
   resendVerificationCode,
   verifyEmailCode,
+  updatePassword
 };

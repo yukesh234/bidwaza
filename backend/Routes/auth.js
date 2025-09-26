@@ -1,7 +1,7 @@
 import express from 'express';
 import dotenv from "dotenv";
 import authcontroller from '../Controller/auth.Controller.js'
-
+import {authenticateToken} from '../middleware/auth.middleware.js'
 dotenv.config();
 
 const router = express.Router();
@@ -13,6 +13,6 @@ router.post('/getCurrentUser', authcontroller.getCurrentUser );
 router.post('/sendverificationCode', authcontroller.sendVerificationCode);
 router.post('/verifyCode', authcontroller.verifyEmailCode);
 router.post('/resendCode', authcontroller.resendVerificationCode);
-
+router.post("/update-password",authenticateToken,authcontroller.updatePassword)
 
 export default router;
