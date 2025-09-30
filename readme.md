@@ -1,191 +1,104 @@
-# Bidwaza Backend API Documentation
+# Bidwaza Backend Documentation
 
 ## Overview
 
-This backend provides RESTful APIs for user authentication, profile management, and seller product operations. All endpoints return JSON responses. Authentication is handled via JWT cookies.
+Bidwaza is an e-commerce backend built with Node.js, Express, and OracleDB. It provides RESTful APIs for user authentication, profile management, product operations, cart management, and email services. Authentication is handled via JWT cookies. All endpoints return JSON responses.
 
 ---
 
-## Authentication & User APIs
+## Project Structure
 
-### `POST /register`
-Register a new user.
-
-**Body:**
-```json
-{
-  "firstname": "string",
-  "lastName": "string",
-  "email": "string",
-  "password": "string",
-  "interests": ["array of strings"]
-}
 ```
-**Response:**
-```json
-{
-  "message": "User registered successfully",
-  "user": { ... },
-  "success": true
-}
-```
-
----
-
-### `POST /login`
-Login user and set JWT cookie.
-
-**Body:**
-```json
-{
-  "email": "string",
-  "password": "string"
-}
-```
-**Response:**
-```json
-{
-  "message": "Login successful",
-  "user": { ... },
-  "success": true
-}
+backend/
+│
+├── Controller/         # API logic for authentication, users, sellers, cart
+│   ├── auth.Controller.js
+│   ├── cart.Controller.js
+│   ├── seller.Controller.js
+│   └── user.Controller.js
+│
+├── Db/                 # Database connection logic
+│   └── Db.js
+│
+├── middleware/         # Express middleware (auth, file upload)
+│   ├── auth.middleware.js
+│   └── multer.middleware.js
+│
+├── public/             # Static/public files
+│   └── temp/
+│
+├── Routes/             # Route definitions
+│   ├── auth.js
+│   ├── cart.js
+│   ├── seller.js
+│   └── user.js
+│
+├── Service/            # External services (Cloudinary, Email)
+│   ├── cloudinary.js
+│   └── emailService.js
+│
+├── .env                # Environment variables
+├── .gitignore          # Git ignore file
+├── index.js            # Entry point
+└── package.json        # Dependencies and scripts
 ```
 
 ---
 
-### `POST /logout`
-Logout user (clears JWT cookie).
+## REST API Endpoints
 
-**Response:**
-```json
-{
-  "message": "Logged out successfully"
-}
-```
+### Authentication & User APIs
 
----
+- **POST `/register`**  
+  Register a new user.
 
-### `POST /getCurrentUser`
-Get current authenticated user info.
+- **POST `/login`**  
+  Login user and set JWT cookie.
 
-**Response:**
-```json
-{
-  "user": { ... }
-}
-```
+- **POST `/logout`**  
+  Logout user (clears JWT cookie).
 
----
+- **POST `/getCurrentUser`**  
+  Get current authenticated user info.
 
-### `POST /sendverificationCode`
-Send email verification code.
+- **POST `/sendverificationCode`**  
+  Send email verification code.
 
-**Body:**
-```json
-{
-  "email": "string"
-}
-```
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Verification code sent to your email"
-}
-```
+- **POST `/verifyCode`**  
+  Verify email with code.
+
+- **POST `/resendCode`**  
+  Resend verification code.
+
+- **POST `/updatePassword`**  
+  Change user password.
 
 ---
 
-### `POST /verifyCode`
-Verify email with code.
+### User Profile APIs
 
-**Body:**
-```json
-{
-  "email": "string",
-  "code": "string"
-}
-```
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Email verified successfully"
-}
-```
+- **POST `/user/uploadprofile`**  
+  Upload a new profile picture.  
+  *(multipart/form-data, field: `file`)*
+
+- **POST `/user/editprofile`**  
+  Edit profile picture.  
+  *(multipart/form-data, field: `file`)*
 
 ---
 
-### `POST /resendCode`
-Resend verification code.
+### Seller APIs
 
-**Body:**
-```json
-{
-  "email": "string"
-}
-```
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Verification code resent"
-}
-```
+- **POST `/seller/addProduct`**  
+  Add a new product (with images).  
+  *(multipart/form-data, fields: `title`, `description`, `category`, `stock`, `product_type`, `amount`, files: `files[]`)*
 
 ---
 
-## User Profile APIs
+### Cart APIs
 
-### `POST /user/uploadprofile`
-Upload a new profile picture.  
-**(multipart/form-data, field: `file`)**
-
-**Response:**
-```json
-{
-  "success": true,
-  "url": "https://cloudinary.com/your-image-url"
-}
-```
-
----
-
-### `POST /user/editprofile`
-Edit profile picture.  
-**(multipart/form-data, field: `file`)**
-
-**Response:**
-```json
-{
-  "success": true,
-  "url": "https://cloudinary.com/your-image-url"
-}
-```
-
----
-
-## Seller APIs
-
-### `POST /seller/addProduct`
-Add a new product.  
-**(multipart/form-data, fields: `title`, `description`, `category`, `stock`, `product_type`, `amount`, files: `files[]`)**
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Product added successfully",
-  "data": {
-    "itemId": 123,
-    "title": "...",
-    "category": "...",
-    "product_type": "...",
-    "amount": 100,
-    "images": ["https://cloudinary.com/img1", ...]
-  }
-}
-```
+- **(Defined in `cart.js` and `cart.Controller.js`)**  
+  Endpoints for cart operations (add, remove, update items, etc.).
 
 ---
 
@@ -201,8 +114,62 @@ All endpoints return error responses with:
 
 ---
 
+## Middleware
+
+- **auth.middleware.js**  
+  Protects routes, checks JWT authentication.
+
+- **multer.middleware.js**  
+  Handles file uploads (images, profile pictures).
+
+---
+
+## Services
+
+- **cloudinary.js**  
+  Handles image uploads to Cloudinary.
+
+- **emailService.js**  
+  Sends verification and notification emails.
+
+---
+
+## Environment Variables
+
+Configure your `.env` file with:
+```
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_CONNECTION_STRING=your_db_connection_string
+JWT_SECRET=your_jwt_secret
+CLOUDINARY_API_KEY=your_cloudinary_key
+CLOUDINARY_API_SECRET=your_cloudinary_secret
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+EMAIL_SERVICE_API_KEY=your_email_api_key
+```
+
+---
+
+## Getting Started
+
+1. Install dependencies:
+   ```
+   npm install
+   ```
+2. Set up your `.env` file.
+3. Start the server:
+   ```
+   node index.js
+   ```
+4. Access API endpoints via your preferred HTTP client.
+
+---
+
 ## Notes
 
-- Authentication is required for profile and seller endpoints.
+- All profile and seller endpoints require authentication.
 - File uploads use `multipart/form-data`.
 - See the `Controller`, `Routes`, and `middleware` folders for implementation details.
+- For database setup, refer to `Db/Db.js`.
+
+---
