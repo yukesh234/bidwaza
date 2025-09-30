@@ -5,8 +5,11 @@ import cookieParser from 'cookie-parser';
 const app = express();
 import user from './Routes/user.js'
 
-//seller rpute
+//seller route
 import seller from './Routes/seller.js'
+
+//cart route
+import cart from './Routes/cart.js'
 app.use(cors({
   origin: "http://localhost:5173",  
   credentials: true                 
@@ -17,6 +20,7 @@ app.use(express.json());
 app.use("/", authrouter);
 app.use("/user", user);
 app.use("/seller", seller);
+app.use("/cart",cart);
 app.listen(3000, () => {
   console.log(`Server started on port 3000`);
 });
