@@ -128,5 +128,205 @@ export async function addtocart (req,res) {
    }
 }
 
+export async function getCart(req, res) {
+  let connection;
+  try {
+    const userId = req.user.ID;
+
+    connection = await getConnection();
+
+    const result = await connection.execute(
+      `SELECT 
+        c.CART_ITEM_ID,
+        c.ITEM_ID,
+        c.QUANTITY,
+        c.ADDED_AT,
+        p.TITLE,
+        TO_CHAR(p.DESCRIPTION) as DESCRIPTION,
+        p.AMOUNT,
+        p.STOCK,
+        p.CATEGORY,
+        p.PRODUCT_TYPE,
+        p.SELLER_ID,
+        u.FIRST_NAME || ' ' || u.LAST_NAME as SELLER_NAME
+      FROM cart_items c
+      INNER JOIN products p ON c.ITEM_ID = p.ITEM_ID
+      LEFT JOIN users u ON p.SELLER_ID = u.ID
+      WHERE c.USER_ID = :userId
+      ORDER BY c.ADDED_AT DESC`,
+      { userId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    // Get images for each product
+    const cartItems = await Promise.all(
+      result.rows.map(async (item) => {
+        try {
+          const imagesResult = await connection.execute(
+            `SELECT IMAGE_URL, IS_PRIMARY 
+             FROM product_images 
+             WHERE ITEM_ID = :itemId 
+             ORDER BY DISPLAY_ORDER`,
+            { itemId: item.ITEM_ID },
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+          );
+
+          const primaryImage = imagesResult.rows.find(img => img.IS_PRIMARY === 'Y')?.IMAGE_URL || 
+                             imagesResult.rows[0]?.IMAGE_URL || null;
+
+          return {
+            cartItemId: item.CART_ITEM_ID,
+            itemId: item.ITEM_ID,
+            title: item.TITLE,
+            description: item.DESCRIPTION,
+            price: item.AMOUNT,
+            quantity: item.QUANTITY,
+            stock: item.STOCK,
+            category: item.CATEGORY,
+            productType: item.PRODUCT_TYPE,
+            subtotal: item.AMOUNT * item.QUANTITY,
+            addedAt: item.ADDED_AT,
+            primaryImage: primaryImage,
+            seller: {
+              sellerId: item.SELLER_ID,
+              name: item.SELLER_NAME
+            }
+          };
+        } catch (imageError) {
+          console.error('Error fetching images for item:', item.ITEM_ID, imageError);
+          return {
+            cartItemId: item.CART_ITEM_ID,
+            itemId: item.ITEM_ID,
+            title: item.TITLE,
+            description: item.DESCRIPTION,
+            price: item.AMOUNT,
+            quantity: item.QUANTITY,
+            stock: item.STOCK,
+            category: item.CATEGORY,
+            productType: item.PRODUCT_TYPE,
+            subtotal: item.AMOUNT * item.QUANTITY,
+            addedAt: item.ADDED_AT,
+            primaryImage: null,
+            seller: {
+              sellerId: item.SELLER_ID,
+              name: item.SELLER_NAME
+            }
+          };
+        }
+      })
+    );
+
+    // Calculate totals
+    const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalAmount = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+    res.status(200).json({
+      success: true,
+      message: "Cart fetched successfully",
+      data: {
+        items: cartItems,
+        summary: {
+          totalItems,
+          totalAmount,
+          itemCount: cartItems.length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get cart error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch cart",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Connection close error:', err);
+      }
+    }
+  }
+}
 
 
+export async function removefromcart(req,res) {
+    let connection;
+    const userId = req.user.ID;
+    const {cartItemId} = req.params;
+    try {
+        connection = await getConnection();
+        const result = await connection.execute(`DELETE FROM cart_items 
+            where CART_ITEM_ID = :cartitemid and USER_ID =:userId`,
+        {
+            cartItemId,
+            userId
+        },
+    {
+        autoCommit:true
+    })
+
+    if(result.rowsAffected == 0)
+    {
+        return res.status(400).json(
+         {  
+            success:false,
+            message:"product doesnt exists in the cart"
+          });
+    }
+     res.status(200).json({
+      success: true,
+      message: "Item removed from cart successfully"
+    });
+    } catch (error) {
+        console.error('Remove from cart error:', error);
+     res.status(500).json({
+      success: false,
+      message: "Failed to remove item from cart",
+      error: error.message
+     })
+}
+finally{
+    if(connection) await connection.close();
+}
+}
+
+export async function clearCart(req, res) {
+  const userId = req.user.ID;
+  let connection;
+  try {
+    connection = await getConnection();
+    
+    const result = await connection.execute(  // FIXED: Added await
+      `DELETE FROM cart_items WHERE USER_ID = :userId`,  // FIXED: Removed space in :userId
+      { userId },
+      { autoCommit: true }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: "Cart cleared successfully",
+      data: {
+        itemsRemoved: result.rowsAffected
+      }
+    });
+    
+  } catch (error) {
+    console.error('Clear cart error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to clear cart",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Connection close error:', err);
+      }
+    }
+  }
+}
