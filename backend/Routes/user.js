@@ -6,5 +6,5 @@ const router = express.Router();
 
 router.post("/uploadprofile", upload.single("file"),authenticateToken, uploadProfile);
 router.post("/editprofile", upload.single("file"),authenticateToken, editprofile)
-router.get("/getProducts", authenticateToken,getallProducts )
+router.get("/getProducts",getallProducts )
 export default router;

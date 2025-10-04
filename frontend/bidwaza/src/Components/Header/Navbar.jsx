@@ -21,7 +21,7 @@ function Navbar() {
     ]
 
     const { logout, isAuthenticated, user } = useAuth();
-    console.log(user);
+    // console.log(user);
     // Safe name handling - handle undefined/null values
     const getFullName = () => {
         if (!user) return "User";
@@ -95,9 +95,9 @@ function Navbar() {
         logout();
     };
 
-    console.log(isAuthenticated);
-    console.log(user);
-    console.log(name);
+    // console.log(isAuthenticated);
+    // console.log(user);
+    // console.log(name);
 
     return (
         <div className='relative z-[1000]'>
