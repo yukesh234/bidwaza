@@ -19,7 +19,7 @@ function Navbar() {
         { name: "Login", path: "/login" },
         { name: "Signup", path: "/signup" }
     ]
-
+    
     const { logout, isAuthenticated, user } = useAuth();
     // console.log(user);
     // Safe name handling - handle undefined/null values
@@ -98,8 +98,9 @@ function Navbar() {
     // console.log(isAuthenticated);
     // console.log(user);
     // console.log(name);
-
+    console.log(user)
     return (
+       
         <div className='relative z-[1000]'>
             {/* Glass morphism navbar */}
             <div className='backdrop-blur-md bg-white/10 border border-white/20 rounded-xl mx-4 mt-4 p-4 shadow-2xl flex justify-between items-center relative z-[1001]'>

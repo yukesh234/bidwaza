@@ -17,7 +17,7 @@ function Login() {
     if(res.success){
       console.log("Login successful");
           toast.success("Login Successful");  
-      Navigate('/');
+         Navigate('/');
         }
         else 
         {

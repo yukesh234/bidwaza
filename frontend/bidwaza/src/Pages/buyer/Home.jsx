@@ -5,7 +5,8 @@ import { Search, ShoppingCart, X, User } from "lucide-react";
 import api from "../../API/api.js";
 import { useNavigate } from "react-router-dom";
 import ProductCard from "../../Components/Cards.jsx"; // Import the new component
-
+import {addtocart} from '../../services/userservices.js'
+import toast from "react-hot-toast";
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -58,6 +59,25 @@ export default function Home() {
       navigate(`/product/${product.itemId}`);
     }
   };
+
+  const onAddToCart = async (product) =>{
+    if(!isAuthenticated)
+    {
+      setShowAuthModal(true);
+    }
+    else{
+      const response = await addtocart(product.itemId);
+      if(response.success){
+        console.log(response.message);
+        toast.success(response.message);
+        navigate('/');
+      }
+      else{
+        toast.error(response.message);
+         navigate('/');
+      }
+    }
+  }
 
   // === Auth Modal ===
   const AuthModal = () => (
@@ -178,13 +198,18 @@ export default function Home() {
                 className="pl-12 pr-6 py-3 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 w-80"
               />
             </div>
-            <motion.button
-              className="p-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <ShoppingCart className="w-6 h-6" />
-            </motion.button>
+           <motion.button
+         className="relative  p-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 cursor-pointer "
+         whileHover={{ scale: 1.05 }}
+         whileTap={{ scale: 0.95 }}
+          onClick={() => {
+              console.log("clicked");
+             navigate("/cart");
+  }}
+>
+  <ShoppingCart className="w-6 h-6" />
+</motion.button>
+
           </div>
         </div>
       </header>
@@ -206,6 +231,7 @@ export default function Home() {
                     key={product.itemId}
                     product={product}
                     onBuyClick={handleBuyClick}
+                    onAddToCart={onAddToCart}
                   />
                 ))}
               </div>

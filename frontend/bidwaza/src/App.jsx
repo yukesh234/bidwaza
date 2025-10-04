@@ -12,6 +12,7 @@ import Verification from './Pages/buyer/Verification'
 import UserLayout from './Layouts/UserLayout'
 import Uploadpfp from './Pages/buyer/Uploadpfp'
 import SellerDashboard from './Pages/seller/SellerDashboard'
+import Cart from "./Pages/buyer/Cart"
 function App() {
   
 
@@ -31,6 +32,8 @@ function App() {
       </Route>
      
       <Route path="/seller-dashboard" element={<SellerDashboard/>} />
+      <Route path="/cart" element={<Cart/>} />
+
       </Routes>
     </>
   )

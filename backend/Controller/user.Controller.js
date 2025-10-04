@@ -2,6 +2,7 @@ import fs from "fs";
 import {uploadImage,deleteImage} from "../Service/cloudinary.js";
 import { getConnection } from "../Db/Db.js";
 import oracledb from "oracledb";
+import jwt from 'jsonwebtoken'
 export async function uploadProfile(req, res) {
   try {
     const userid  = req.user.ID;
@@ -89,48 +90,65 @@ export async function editprofile(req, res) {
 
 export async function getallProducts(req, res) {
   let connection;
+  let userId = null;
+
+ 
   try {
-    // Get pagination and filter params from query string
+    const token = req.cookies?.token;
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log(decoded);
+      userId = decoded.id;
+      console.log(userId)
+    }
+  } catch (err) {
+    console.log( "No valid token, showing public products.");
+  }
+
+  try {
+    // Pagination and filters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const { category, product_type } = req.query;
-    
-    // Calculate offset
+
     const offset = (page - 1) * limit;
 
     connection = await getConnection();
 
-    // Build dynamic WHERE clause for filters (NO SELLER_ID filter)
-    let whereClause = '';
+    // 🔹 Dynamic WHERE clause
+    let whereClause = "";
     const binds = { offset, limit };
 
     if (category) {
-      whereClause = whereClause ? whereClause + ' AND' : 'WHERE';
-      whereClause += ' p.CATEGORY = :category';
+      whereClause += (whereClause ? " AND" : " WHERE") + " p.CATEGORY = :category";
       binds.category = category;
     }
 
     if (product_type) {
-      whereClause = whereClause ? whereClause + ' AND' : 'WHERE';
-      whereClause += ' p.PRODUCT_TYPE = :productType';
+      whereClause += (whereClause ? " AND" : " WHERE") + " p.PRODUCT_TYPE = :productType";
       binds.productType = product_type;
     }
 
-    // Main query with pagination and SELLER INFO joined
+    if (userId) {
+      whereClause += (whereClause ? " AND" : " WHERE") + " p.SELLER_ID != :userId";
+      binds.userId = userId;
+    }
+
+    
     const productsQuery = `
       SELECT 
         p.ITEM_ID,
         p.SELLER_ID,
         p.TITLE,
-        TO_CHAR(p.DESCRIPTION) as DESCRIPTION,
+        TO_CHAR(p.DESCRIPTION) AS DESCRIPTION,
         p.CATEGORY,
         p.STOCK,
         p.PRODUCT_TYPE,
         p.AMOUNT,
         p.CREATED_AT,
-        u.FIRST_NAME || ' ' || u.LAST_NAME as SELLER_NAME,
-        u.EMAIL as SELLER_EMAIL,
-        u.PROFILE_PICTURE_URL as SELLER_PROFILE_PICTURE
+        u.FIRST_NAME || ' ' || u.LAST_NAME AS SELLER_NAME,
+        u.EMAIL AS SELLER_EMAIL,
+        u.PROFILE_PICTURE_URL AS SELLER_PROFILE_PICTURE
       FROM products p
       LEFT JOIN users u ON p.SELLER_ID = u.ID
       ${whereClause}
@@ -138,125 +156,95 @@ export async function getallProducts(req, res) {
       OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
     `;
 
-    // Count query for total records
+    // 🔹 Count query (no offset/limit)
     const countQuery = `
-      SELECT COUNT(*) as TOTAL_COUNT
+      SELECT COUNT(*) AS TOTAL_COUNT
       FROM products p
       ${whereClause}
     `;
 
+    // ✅ Separate binds for count query (remove offset/limit)
+    const countBinds = { ...binds };
+    delete countBinds.offset;
+    delete countBinds.limit;
+
     // Execute both queries in parallel
     const [productsResult, countResult] = await Promise.all([
       connection.execute(productsQuery, binds, { outFormat: oracledb.OUT_FORMAT_OBJECT }),
-      connection.execute(countQuery, 
-        { ...(category && { category }), ...(product_type && { productType: product_type }) },
-        { outFormat: oracledb.OUT_FORMAT_OBJECT }
-      )
+      connection.execute(countQuery, countBinds, { outFormat: oracledb.OUT_FORMAT_OBJECT }),
     ]);
 
     const totalCount = countResult.rows[0]?.TOTAL_COUNT || 0;
 
-    console.log('=== ALL PRODUCTS PAGINATION INFO ===');
-    console.log('Page:', page);
-    console.log('Limit:', limit);
-    console.log('Offset:', offset);
-    console.log('Total Count:', totalCount);
-    console.log('Rows returned:', productsResult.rows.length);
-
-    // Get images for each product
-    const productsWithImagesAndSeller = await Promise.all(
+    // 🔹 Fetch images for each product
+    const productsWithImages = await Promise.all(
       productsResult.rows.map(async (product) => {
-        try {
-          const imagesResult = await connection.execute(
-            `SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER 
-             FROM product_images 
-             WHERE ITEM_ID = :itemId 
-             ORDER BY DISPLAY_ORDER`,
-            { itemId: product.ITEM_ID },
-            { outFormat: oracledb.OUT_FORMAT_OBJECT }
-          );
+        const imagesResult = await connection.execute(
+          `SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER 
+           FROM product_images 
+           WHERE ITEM_ID = :itemId 
+           ORDER BY DISPLAY_ORDER`,
+          { itemId: product.ITEM_ID },
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
 
-          return {
-            itemId: product.ITEM_ID,
-            title: product.TITLE,
-            description: product.DESCRIPTION,
-            category: product.CATEGORY,
-            stock: product.STOCK,
-            productType: product.PRODUCT_TYPE,
-            amount: product.AMOUNT,
-            createdAt: product.CREATED_AT,
-            seller: {
-              sellerId: product.SELLER_ID,
-              name: product.SELLER_NAME,
-              email: product.SELLER_EMAIL,
-              profilePicture: product.SELLER_PROFILE_PICTURE
-            },
-            images: imagesResult.rows.map(img => ({
-              url: img.IMAGE_URL,
-              isPrimary: img.IS_PRIMARY === 'Y',
-              displayOrder: img.DISPLAY_ORDER
-            }))
-          };
-        } catch (imageError) {
-          console.error('Error fetching images for product:', product.ITEM_ID, imageError);
-          return {
-            itemId: product.ITEM_ID,
-            title: product.TITLE,
-            description: product.DESCRIPTION,
-            category: product.CATEGORY,
-            stock: product.STOCK,
-            productType: product.PRODUCT_TYPE,
-            amount: product.AMOUNT,
-            createdAt: product.CREATED_AT,
-            seller: {
-              sellerId: product.SELLER_ID,
-              name: product.SELLER_NAME,
-              email: product.SELLER_EMAIL,
-              phone: product.SELLER_PHONE,
-              companyName: product.COMPANY_NAME,
-              profilePicture: product.SELLER_PROFILE_PICTURE
-            },
-            images: []
-          };
-        }
+        return {
+          itemId: product.ITEM_ID,
+          title: product.TITLE,
+          description: product.DESCRIPTION,
+          category: product.CATEGORY,
+          stock: product.STOCK,
+          productType: product.PRODUCT_TYPE,
+          amount: product.AMOUNT,
+          createdAt: product.CREATED_AT,
+          seller: {
+            sellerId: product.SELLER_ID,
+            name: product.SELLER_NAME,
+            email: product.SELLER_EMAIL,
+            profilePicture: product.SELLER_PROFILE_PICTURE,
+          },
+          images: imagesResult.rows.map((img) => ({
+            url: img.IMAGE_URL,
+            isPrimary: img.IS_PRIMARY === "Y",
+            displayOrder: img.DISPLAY_ORDER,
+          })),
+        };
       })
     );
 
-    // Calculate pagination metadata
+    // 🔹 Pagination details
     const totalPages = Math.ceil(totalCount / limit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
 
     res.status(200).json({
       success: true,
       message: "Products fetched successfully",
       data: {
-        products: productsWithImagesAndSeller,
+        products: productsWithImages,
         pagination: {
           currentPage: page,
-          limit: limit,
-          totalCount: totalCount,
-          totalPages: totalPages,
-          hasNextPage: hasNextPage,
-          hasPrevPage: hasPrevPage
-        }
-      }
+          limit,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      },
     });
-
   } catch (error) {
-    console.error('Get all products error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch products", 
-      error: error.message 
+    console.error("Get all products error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch products",
+      error: error.message,
     });
   } finally {
     if (connection) {
       try {
         await connection.close();
       } catch (closeError) {
-        console.error('Connection close error:', closeError);
+        console.error("Connection close error:", closeError);
       }
     }
   }
 }
+
