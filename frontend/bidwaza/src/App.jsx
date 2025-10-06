@@ -13,6 +13,7 @@ import UserLayout from './Layouts/UserLayout'
 import Uploadpfp from './Pages/buyer/Uploadpfp'
 import SellerDashboard from './Pages/seller/SellerDashboard'
 import Cart from "./Pages/buyer/Cart"
+import BuyProduct from './Pages/buyer/BuyProduct'
 function App() {
   
 
@@ -33,7 +34,7 @@ function App() {
      
       <Route path="/seller-dashboard" element={<SellerDashboard/>} />
       <Route path="/cart" element={<Cart/>} />
-
+       <Route path="/product/:productId" element={<BuyProduct/>} />
       </Routes>
     </>
   )

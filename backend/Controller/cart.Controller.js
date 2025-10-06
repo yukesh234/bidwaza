@@ -330,3 +330,73 @@ export async function clearCart(req, res) {
     }
   }
 }
+
+export async function updateCartItemQuantity(req, res) {
+  let connection;
+  try {
+    const { cartItemId} = req.params;
+    const { quantity } = req.body;
+    const userId = req.user.ID;
+    if (quantity < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Quantity must be at least 1"
+      });
+    }
+    connection = await getConnection();
+    //check if cart item exists and belongs to user
+    const cartItemCheck = await connection.execute(
+      `SELECT ITEM_ID FROM cart_items WHERE CART_ITEM_ID = :cartItemId AND USER_ID = :userId`,
+      { cartItemId, userId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    if (cartItemCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Cart item not found"
+      });
+    }
+    const itemId = cartItemCheck.rows[0].ITEM_ID;
+    //check stock
+    const productCheck = await connection.execute(
+      `SELECT STOCK FROM products WHERE ITEM_ID = :itemId`,
+      { itemId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT } 
+    );
+    if (productCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    const product = productCheck.rows[0];
+    if (product.STOCK < quantity) {
+      return res.status(400).json({
+        success: false,
+        message: `Only ${product.STOCK} items available in stock`
+      });
+    }
+    //update quantity
+    await connection.execute(
+      `UPDATE cart_items SET QUANTITY = :quantity, ADDED_AT = CURRENT_TIMESTAMP WHERE CART_ITEM_ID = :cartItemId`,
+      { quantity, cartItemId },
+      { autoCommit: true }
+    );
+    res.status(200).json({
+      success: true,
+      message: "Cart item quantity updated successfully",
+      data: {
+        cartItemId,
+        quantity
+      }
+    });
+
+  } catch (error) {
+    console.error('Update cart item quantity error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update cart item quantity",
+      error: error.message
+    });
+  }
+}
