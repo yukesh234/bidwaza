@@ -180,7 +180,7 @@ function SellerDashboard() {
                 </button>
 
                 {isDropdownOpen && (
-                  <div className='absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-md border border-cyan-400/20 rounded-2xl shadow-2xl overflow-hidden'>
+                  <div className='absolute right-0 mt-2 w-70 bg-gray-900/95 backdrop-blur-md border border-cyan-400/20 rounded-2xl shadow-2xl overflow-hidden'>
                     <div className='px-6 py-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-b border-cyan-400/20'>
                       <div className='flex items-center gap-3'>
                         {user.profilePicture ? (
