@@ -2,16 +2,18 @@ import React, { useEffect, useState } from 'react'
 import { getCart, removefromCart, updateCartItemQuantity } from "../../services/userservices.js"
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
-import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Package } from 'lucide-react'
-import {useNavigate} from 'react-router-dom'
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Package, MoveLeft } from 'lucide-react'
+import {NavLink, useNavigate} from 'react-router-dom'
+
 function Cart() {
   const [cartItems, setCartItems] = useState([])
   const [summary, setSummary] = useState({})
   const [loading, setLoading] = useState(true)
   const navigate=useNavigate()
+  
   useEffect(() => {
     fetchCart()
-  }, [summary.itemCount])
+  }, [])
 
   const fetchCart = async () => {
     try {
@@ -48,7 +50,27 @@ function Cart() {
       if(response.success)
       {
         //update the cart item quantity in the state
-        setCartItems(prevItems => prevItems.map(item => item.cartItemId === cartItemId ? { ...item, quantity: newQuantity } : item));
+        setCartItems(prevItems => {
+          const updatedItems = prevItems.map(item => {
+            if (item.cartItemId === cartItemId) {
+              const updatedItem = { ...item, quantity: newQuantity };
+              updatedItem.subtotal = item.price * newQuantity;
+              return updatedItem;
+            }
+            return item;
+          });
+          
+          // Recalculate summary
+          const totalAmount = updatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+          const totalItems = updatedItems.reduce((sum, item) => sum + item.quantity, 0);
+          setSummary({
+            totalAmount,
+            totalItems,
+            itemCount: updatedItems.length
+          });
+          
+          return updatedItems;
+        });
         toast.success("Cart item quantity updated successfully");
       }
       else
@@ -70,7 +92,20 @@ function Cart() {
       if(respone.success)
       {
         //removing from the state
-        setCartItems(prevItems => prevItems.filter(item => item.cartItemId !== cartItemId));
+        setCartItems(prevItems => {
+          const updatedItems = prevItems.filter(item => item.cartItemId !== cartItemId);
+          
+          // Recalculate summary
+          const totalAmount = updatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+          const totalItems = updatedItems.reduce((sum, item) => sum + item.quantity, 0);
+          setSummary({
+            totalAmount,
+            totalItems,
+            itemCount: updatedItems.length
+          });
+          
+          return updatedItems;
+        });
         toast.success("Item removed from cart successfully");
       }
     } catch (error) {
@@ -90,8 +125,23 @@ function Cart() {
   }
 
   return (
+    
     <div className="min-h-screen bg-gradient-to-br from-slate-800 via-teal-800 to-slate-900 py-8">
-      <div className="max-w-7xl mx-auto px-6">
+       <motion.div 
+        className='absolute top-6 left-6'
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <NavLink
+          to="/"
+          className='flex items-center gap-2 text-white/80 hover:text-cyan-300 transition-all duration-300 group'
+        >
+          <MoveLeft className='h-5 w-5 group-hover:-translate-x-1 transition-transform duration-300' />
+          Back to Home
+        </NavLink>
+      </motion.div>
+      <div className="max-w-7xl mx-auto px-6 mt-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">

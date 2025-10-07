@@ -22,10 +22,10 @@ function SellerDashboard() {
   const {logout, user:User} = useAuth();
   
   const user = {
-    firstName: User.FIRST_NAME || "John",
-    lastName: User.LAST_NAME || "Doe",
-    email: User.EMAIL ||"john.doe@example.com",
-    profilePicture: User.PROFILE_PICTURE_URL
+    firstName: User?.FIRST_NAME || "John",
+    lastName: User?.LAST_NAME || "Doe",
+    email: User?.EMAIL ||"john.doe@example.com",
+    profilePicture: User?.PROFILE_PICTURE_URL
   }
 
   const [sellerStats, setSellerStats] = useState({
@@ -142,13 +142,13 @@ function SellerDashboard() {
             <div className='flex items-center gap-4'>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className='px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl flex items-center gap-2'
+                className='px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl flex items-center gap-2 hover:shadow-lg hover:shadow-cyan-500/50 transition-all'
               >
                 <Plus className='w-5 h-5' />
                 New Listing
               </button>
 
-              <button className='relative p-2 text-white/60 hover:text-white'>
+              <button className='relative p-2 text-white/60 hover:text-white transition-colors'>
                 <Bell className='w-6 h-6' />
                 <span className='absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full'></span>
               </button>
@@ -156,7 +156,7 @@ function SellerDashboard() {
               <div className='relative' ref={dropdownRef}>
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className='flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 rounded-full'
+                  className='flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 rounded-full hover:border-cyan-400/50 transition-all'
                 >
                   <div className='relative'>
                     {user.profilePicture ? (
@@ -201,28 +201,30 @@ function SellerDashboard() {
                       </div>
                     </div>
                     <div className='py-2'>
-                      <button className='w-full flex items-center gap-4 px-6 py-3 hover:bg-cyan-500/10'>
-                        <div className='p-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-lg'>
-                          <ShoppingBag className='w-5 h-5 text-cyan-300' />
-                        </div>
-                        <div className='flex-1 text-left'
+                      <button 
                         onClick={()=>{
                           console.log("clicked");
                           navigate("/");
                         }}
-                        >
+                        className='w-full flex items-center gap-4 px-6 py-3 hover:bg-cyan-500/10 transition-colors'
+                      >
+                        <div className='p-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-lg'>
+                          <ShoppingBag className='w-5 h-5 text-cyan-300' />
+                        </div>
+                        <div className='flex-1 text-left'>
                           <p className='text-white font-medium text-sm'>Switch to Buying</p>
                           <p className='text-white/60 text-xs'>Browse marketplace</p>
                         </div>
                       </button>
                       <div className='border-t border-cyan-400/20 my-2'></div>
-                      <button className='w-full flex items-center gap-4 px-6 py-3 hover:bg-red-500/10'>
+                      <button 
+                        onClick={logout}
+                        className='w-full flex items-center gap-4 px-6 py-3 hover:bg-red-500/10 transition-colors'
+                      >
                         <div className='p-2 bg-gradient-to-r from-red-500/20 to-pink-500/20 rounded-lg'>
                           <LogOut className='w-5 h-5 text-red-300' />
                         </div>
-                        <div className='flex-1 text-left'
-                        onClick={logout}
-                        >
+                        <div className='flex-1 text-left'>
                           <p className='text-white font-medium text-sm'>Logout</p>
                           <p className='text-white/60 text-xs'>Sign out</p>
                         </div>
@@ -237,15 +239,15 @@ function SellerDashboard() {
       </motion.header>
 
       <div className='max-w-7xl mx-auto px-6 py-8'>
-        <div className='flex gap-8'>
-          <div className='w-64 space-y-2 sticky top-24 self-start'>
+        <div className='flex gap-8 items-start'>
+          <aside className='w-64 flex-shrink-0 space-y-2 sticky top-24'>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/30'
+                    ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/30 shadow-lg shadow-cyan-500/20'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -253,21 +255,31 @@ function SellerDashboard() {
                 {tab.label}
               </button>
             ))}
-          </div>
+          </aside>
 
-          <div className='flex-1'>
+          <main className='flex-1 min-w-0'>
             <AnimatePresence mode="wait">
               {activeTab === 'overview' && (
-                <motion.div key="overview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                <motion.div 
+                  key="overview" 
+                  initial={{ opacity: 0, y: 20 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-8"
+                >
                   <div className="grid grid-cols-4 gap-6">
                     {statsCards.map((stat) => (
-                      <div key={stat.label} className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                      <motion.div 
+                        key={stat.label} 
+                        className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all"
+                        whileHover={{ scale: 1.02 }}
+                      >
                         <div className={`w-12 h-12 bg-gradient-to-r ${stat.color} rounded-xl flex items-center justify-center mb-4`}>
                           <stat.icon className="w-6 h-6 text-white" />
                         </div>
                         <div className="text-2xl font-bold text-white">{stat.value}</div>
                         <div className="text-white/60 text-sm">{stat.label}</div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
 
@@ -281,7 +293,7 @@ function SellerDashboard() {
                         {recentActivity.length > 0 ? recentActivity.map((activity, i) => {
                           const Icon = getActivityIcon(activity.type)
                           return (
-                            <div key={i} className="flex items-center gap-4 p-4 bg-white/5 rounded-xl">
+                            <div key={i} className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
                               <div className="w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full flex items-center justify-center">
                                 <Icon className="w-5 h-5 text-white" />
                               </div>
@@ -307,7 +319,7 @@ function SellerDashboard() {
                             <span className="text-green-400 font-semibold">{sellerStats.successRate}%</span>
                           </div>
                           <div className="w-full bg-white/20 rounded-full h-2">
-                            <div className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full" style={{ width: `${sellerStats.successRate}%` }} />
+                            <div className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all" style={{ width: `${sellerStats.successRate}%` }} />
                           </div>
                         </div>
                         <div>
@@ -345,27 +357,40 @@ function SellerDashboard() {
               )}
 
               {activeTab === 'listings' && (
-                <motion.div key="listings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                <motion.div 
+                  key="listings" 
+                  initial={{ opacity: 0, y: 20 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
                   <div className="flex gap-4 justify-between">
                     <div className="flex gap-4">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
                         <input
                           type="text"
-                          placeholder="Search..."
+                          placeholder="Search listings..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white w-64"
+                          className="pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 w-64 focus:outline-none focus:border-cyan-400/50"
                         />
                       </div>
-                      <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white">
+                      <select 
+                        value={filterStatus} 
+                        onChange={(e) => setFilterStatus(e.target.value)} 
+                        className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-cyan-400/50"
+                      >
                         <option value="all">All Status</option>
                         <option value="active">Active</option>
                         <option value="draft">Draft</option>
                         <option value="sold">Sold</option>
                       </select>
                     </div>
-                    <button onClick={() => setShowCreateModal(true)} className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowCreateModal(true)} 
+                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl flex items-center gap-2 hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+                    >
                       <Plus className="w-5 h-5" />
                       Create Listing
                     </button>
@@ -373,7 +398,7 @@ function SellerDashboard() {
 
                   <div className="grid gap-6">
                     {listings.length > 0 ? listings.map((listing) => (
-                      <div key={listing.id} className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                      <div key={listing.id} className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all">
                         <div className="flex gap-6">
                           <div className="relative">
                             <img src={listing.image} alt={listing.title} className="w-24 h-24 rounded-xl object-cover" />
@@ -413,16 +438,16 @@ function SellerDashboard() {
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <button className="px-4 py-2 bg-cyan-500/20 text-cyan-300 rounded-lg flex items-center gap-2">
+                              <button className="px-4 py-2 bg-cyan-500/20 text-cyan-300 rounded-lg flex items-center gap-2 hover:bg-cyan-500/30 transition-colors">
                                 <Edit3 className="w-4 h-4" />
                                 Edit
                               </button>
-                              <button className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg flex items-center gap-2">
+                              <button className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg flex items-center gap-2 hover:bg-blue-500/30 transition-colors">
                                 <Eye className="w-4 h-4" />
                                 View
                               </button>
                               {listing.status === 'active' && (
-                                <button className="px-4 py-2 bg-yellow-500/20 text-yellow-300 rounded-lg flex items-center gap-2">
+                                <button className="px-4 py-2 bg-yellow-500/20 text-yellow-300 rounded-lg flex items-center gap-2 hover:bg-yellow-500/30 transition-colors">
                                   <Zap className="w-4 h-4" />
                                   Promote
                                 </button>
@@ -435,7 +460,14 @@ function SellerDashboard() {
                       <div className="text-center py-20">
                         <Package className="w-16 h-16 text-white/40 mx-auto mb-4" />
                         <h3 className="text-2xl font-bold text-white mb-2">No Listings Yet</h3>
-                        <p className="text-white/60">Create your first listing to get started</p>
+                        <p className="text-white/60 mb-6">Create your first listing to get started</p>
+                        <button 
+                          onClick={() => setShowCreateModal(true)}
+                          className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl inline-flex items-center gap-2 hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+                        >
+                          <Plus className="w-5 h-5" />
+                          Create Your First Listing
+                        </button>
                       </div>
                     )}
                   </div>
@@ -443,13 +475,24 @@ function SellerDashboard() {
               )}
 
               {['analytics', 'messages', 'settings'].includes(activeTab) && (
-                <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
-                  <h3 className="text-2xl font-bold text-white mb-2">{tabs.find(t => t.id === activeTab).label}</h3>
+                <motion.div 
+                  key={activeTab} 
+                  initial={{ opacity: 0, y: 20 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  exit={{ opacity: 0, y: -20 }}
+                  className="text-center py-20"
+                >
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-full mb-6">
+                    {tabs.find(t => t.id === activeTab) && 
+                      React.createElement(tabs.find(t => t.id === activeTab).icon, { className: "w-10 h-10 text-cyan-300" })
+                    }
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">{tabs.find(t => t.id === activeTab)?.label}</h3>
                   <p className="text-white/60">Coming soon...</p>
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </main>
         </div>
       </div>
 
@@ -472,22 +515,33 @@ function SellerDashboard() {
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="sticky top-0 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-b border-white/20 p-6 flex justify-between backdrop-blur-md">
                   <h2 className="text-2xl font-bold text-white">Create New Listing</h2>
-                  <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                  <button 
+                    onClick={() => setShowCreateModal(false)} 
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
                     <X className="w-6 h-6 text-white/60" />
                   </button>
                 </div>
                 <div className="p-6 space-y-6">
                   <div>
                     <label className="block text-white font-semibold mb-2">Title</label>
-                    <input type="text" placeholder="Enter product title..." className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40" />
+                    <input 
+                      type="text" 
+                      placeholder="Enter product title..." 
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/50" 
+                    />
                   </div>
                   <div>
                     <label className="block text-white font-semibold mb-2">Description</label>
-                    <textarea rows="4" placeholder="Describe your product..." className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 resize-none" />
+                    <textarea 
+                      rows="4" 
+                      placeholder="Describe your product..." 
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 resize-none focus:outline-none focus:border-cyan-400/50" 
+                    />
                   </div>
                   <div>
                     <label className="block text-white font-semibold mb-2">Category</label>
-                    <select className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white">
+                    <select className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-cyan-400/50">
                       <option value="">Select category...</option>
                       <option value="electronics">Electronics</option>
                       <option value="fashion">Fashion</option>
@@ -498,11 +552,15 @@ function SellerDashboard() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-white font-semibold mb-2">Starting Bid</label>
-                      <input type="number" placeholder="0.00" className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40" />
+                      <input 
+                        type="number" 
+                        placeholder="0.00" 
+                        className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/50" 
+                      />
                     </div>
                     <div>
                       <label className="block text-white font-semibold mb-2">Duration</label>
-                      <select className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white">
+                      <select className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-cyan-400/50">
                         <option value="1">1 Day</option>
                         <option value="3">3 Days</option>
                         <option value="7">7 Days</option>
@@ -510,15 +568,18 @@ function SellerDashboard() {
                     </div>
                   </div>
                 </div>
-                <div className="sticky bottom-0 bg-slate-800/90 border-t border-white/20 p-6 flex gap-4">
-                  <button onClick={() => setShowCreateModal(false)} className="flex-1 px-6 py-3 bg-white/10 text-white font-semibold rounded-xl">
+                <div className="sticky bottom-0 bg-slate-800/90 border-t border-white/20 p-6 flex gap-4 backdrop-blur-md">
+                  <button 
+                    onClick={() => setShowCreateModal(false)} 
+                    className="flex-1 px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors"
+                  >
                     Cancel
                   </button>
-                  <button className="flex-1 px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+                  <button className="flex-1 px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-yellow-500/50 transition-all">
                     <Upload className="w-5 h-5" />
                     Save as Draft
                   </button>
-                  <button className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+                  <button className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-cyan-500/50 transition-all">
                     <Zap className="w-5 h-5" />
                     Publish
                   </button>

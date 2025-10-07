@@ -179,40 +179,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
-      {/* Header */}
-      <header className="py-8 px-6 border-b border-white/10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <motion.h1
-            className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            Bidwaza
-          </motion.h1>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                className="pl-12 pr-6 py-3 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 w-80"
-              />
-            </div>
-           <motion.button
-         className="relative  p-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 cursor-pointer "
-         whileHover={{ scale: 1.05 }}
-         whileTap={{ scale: 0.95 }}
-          onClick={() => {
-              console.log("clicked");
-             navigate("/cart");
-  }}
->
-  <ShoppingCart className="w-6 h-6" />
-</motion.button>
 
-          </div>
-        </div>
-      </header>
 
       {/* Product Section */}
       <section className="py-20 px-6">
