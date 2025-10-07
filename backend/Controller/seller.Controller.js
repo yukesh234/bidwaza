@@ -15,6 +15,121 @@ async function addProduct(req, res) {
       });
     }
 
+    // Validate product type
+    const validTypes = ['DIRECT_SELL', 'AUCTION', 'REGISTRATION'];
+    if (!validTypes.includes(product_type)) {
+      return res.status(400).json({
+        message: "Invalid product type. Must be DIRECT_SELL, AUCTION, or REGISTRATION",
+        success: false
+      });
+    }
+
+    // Validate stock and amount
+    if (isNaN(parseInt(stock)) || parseInt(stock) < 0) {
+      return res.status(400).json({
+        message: "Stock must be a non-negative number",
+        success: false
+      });
+    }
+
+    if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      return res.status(400).json({
+        message: "Amount must be a positive number",
+        success: false
+      });
+    }
+
+    // Handle auction-specific fields
+    let auctionData = null;
+    if (product_type === 'AUCTION' || product_type === 'REGISTRATION') {
+      const { starting_price, start_time, end_time, registration_end } = req.body;
+
+      // Validate required auction fields
+      if (!starting_price || !start_time || !end_time) {
+        return res.status(400).json({
+          message: "Starting price, start time (date & time), and end time (date & time) are required for auction products",
+          success: false
+        });
+      }
+
+      // Validate starting price
+      if (isNaN(parseFloat(starting_price)) || parseFloat(starting_price) <= 0) {
+        return res.status(400).json({
+          message: "Starting price must be a positive number",
+          success: false
+        });
+      }
+
+      // Parse and validate datetime (handles both date and time)
+      const startDate = new Date(start_time);
+      const endDate = new Date(end_time);
+      const now = new Date();
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({
+          message: "Invalid datetime format for start time or end time. Please provide full date and time",
+          success: false
+        });
+      }
+
+      if (startDate < now) {
+        return res.status(400).json({
+          message: "Start time cannot be in the past",
+          success: false
+        });
+      }
+
+      if (endDate <= startDate) {
+        return res.status(400).json({
+          message: "End time must be after start time",
+          success: false
+        });
+      }
+
+      // Validate registration end ONLY for REGISTRATION type
+      let regEndDate = null;
+      if (product_type === 'REGISTRATION') {
+        if (!registration_end) {
+          return res.status(400).json({
+            message: "Registration end time (date & time) is required for registration-type auctions",
+            success: false
+          });
+        }
+
+        regEndDate = new Date(registration_end);
+        if (isNaN(regEndDate.getTime())) {
+          return res.status(400).json({
+            message: "Invalid datetime format for registration end time. Please provide full date and time",
+            success: false
+          });
+        }
+
+        if (regEndDate < now) {
+          return res.status(400).json({
+            message: "Registration end time cannot be in the past",
+            success: false
+          });
+        }
+
+        if (regEndDate >= startDate) {
+          return res.status(400).json({
+            message: "Registration must end before auction starts",
+            success: false
+          });
+        }
+      } else if (product_type === 'AUCTION' && registration_end) {
+        // If AUCTION type has registration_end, ignore it or warn
+        console.warn('Registration end time provided for AUCTION type - will be ignored');
+      }
+
+      auctionData = {
+        starting_price: parseFloat(starting_price),
+        start_time: startDate,
+        end_time: endDate,
+        registration_end: regEndDate
+      };
+    }
+
     // Validate files
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -28,7 +143,6 @@ async function addProduct(req, res) {
       req.files.map(file => uploadImage(file?.path))
     );
 
-    // Since uploadImage returns the URL directly as a string, we just need to filter out any null/undefined values
     const productImagesURL = uploadResults.filter(url => url && typeof url === 'string');
 
     if (productImagesURL.length === 0) {
@@ -40,25 +154,58 @@ async function addProduct(req, res) {
     // Get DB connection
     connection = await getConnection();
 
-    // Insert product
-    const productResult = await connection.execute(
-      `INSERT INTO products (
-         ITEM_ID, SELLER_ID, TITLE, DESCRIPTION, CATEGORY, STOCK, PRODUCT_TYPE, AMOUNT
+    // Prepare SQL based on product type
+    let insertSQL, insertBinds;
+
+    if (product_type === 'DIRECT_SELL') {
+      insertSQL = `INSERT INTO products (
+         ITEM_ID, SELLER_ID, TITLE, DESCRIPTION, CATEGORY, STOCK, 
+         PRODUCT_TYPE, AMOUNT, STATUS, CREATED_AT, UPDATED_AT
        ) VALUES (
-         product_seq.NEXTVAL, :sellerId, :title, :description, :category, :stock, :type, :amount
-       ) RETURNING ITEM_ID INTO :itemId`,
-      {
+         product_seq.NEXTVAL, :sellerId, :title, :description, :category, :stock, 
+         :type, :amount, 'ACTIVE', SYSTIMESTAMP, SYSTIMESTAMP
+       ) RETURNING ITEM_ID INTO :itemId`;
+
+      insertBinds = {
         sellerId: req.user.ID,
         title,
         description,
         category,
-        stock: parseInt(stock) || 1,
+        stock: parseInt(stock),
         type: product_type,
         amount: parseFloat(amount),
-        itemId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
-      }
-    );
+        itemId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER }
+      };
+    } else {
+      // For AUCTION and REGISTRATION types
+      insertSQL = `INSERT INTO products (
+         ITEM_ID, SELLER_ID, TITLE, DESCRIPTION, CATEGORY, STOCK, 
+         PRODUCT_TYPE, AMOUNT, STATUS, CREATED_AT, UPDATED_AT,
+         STARTING_PRICE, CURRENT_PRICE, START_TIME, END_TIME, REGISTRATION_END
+       ) VALUES (
+         product_seq.NEXTVAL, :sellerId, :title, :description, :category, :stock, 
+         :type, :amount, 'PENDING', SYSTIMESTAMP, SYSTIMESTAMP,
+         :startingPrice, :startingPrice, :startTime, :endTime, :registrationEnd
+       ) RETURNING ITEM_ID INTO :itemId`;
 
+      insertBinds = {
+        sellerId: req.user.ID,
+        title,
+        description,
+        category,
+        stock: parseInt(stock),
+        type: product_type,
+        amount: parseFloat(amount),
+        startingPrice: auctionData.starting_price,
+        startTime: auctionData.start_time,
+        endTime: auctionData.end_time,
+        registrationEnd: auctionData.registration_end,
+        itemId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER }
+      };
+    }
+
+    // Insert product
+    const productResult = await connection.execute(insertSQL, insertBinds);
     const itemId = productResult.outBinds.itemId[0];
 
     // Insert images
@@ -75,24 +222,38 @@ async function addProduct(req, res) {
           isPrimary: i == 0 ? 'Y' : 'N',
           displayOrder: Number(i) + 1,
         },
-        { autoCommit: true }
+        { autoCommit: false }
       );
     }
 
     // Commit transaction
     await connection.commit();
 
+    // Prepare response data
+    const responseData = {
+      itemId,
+      title,
+      category,
+      product_type,
+      amount: parseFloat(amount),
+      stock: parseInt(stock),
+      images: productImagesURL
+    };
+
+    if (auctionData) {
+      responseData.auction_details = {
+        starting_price: auctionData.starting_price,
+        current_price: auctionData.starting_price,
+        start_time: auctionData.start_time,
+        end_time: auctionData.end_time,
+        ...(auctionData.registration_end && { registration_end: auctionData.registration_end })
+      };
+    }
+
     res.status(201).json({
       success: true,
-      message: "Product added successfully",
-      data: {
-        itemId,
-        title,
-        category,
-        product_type,
-        amount,
-        images: productImagesURL
-      }
+      message: `${product_type === 'DIRECT_SELL' ? 'Product' : 'Auction'} listed successfully`,
+      data: responseData
     });
 
   } catch (error) {
@@ -109,7 +270,7 @@ async function addProduct(req, res) {
     
     res.status(500).json({ 
       success: false, 
-      message: "Failed to add product", 
+      message: "Failed to list product", 
       error: error.message 
     });
   } finally {
