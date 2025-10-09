@@ -81,3 +81,19 @@ export const updateCartItemQuantity = async(cartItemId, newQuantity) =>{
     return {success:false, message: error.response?.data?.message || "Error updating cart item quantity"}
   }
 }
+
+export const getProductById = async (itemId) =>{
+  try {
+    console.log('getproductby id function called with itemId:',itemId);
+    const response = await api.get(`/user/getProductsByid/${itemId}`);
+    console.log('Response from getProductById:', response.data);
+    if(response.data.success)
+    {
+      return {success:true, product: response.data.data || {}}
+     
+    }
+  } catch (error) {
+    return {success:false, message: error.response?.data?.message || "Error fetching product details"}
+  }
+}
+

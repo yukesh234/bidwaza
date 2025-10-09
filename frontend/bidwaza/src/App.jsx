@@ -13,6 +13,7 @@ import Uploadpfp from './Pages/buyer/Uploadpfp'
 import SellerDashboard from './Pages/seller/SellerDashboard'
 import Cart from "./Pages/buyer/Cart"
 import BuyProduct from './Pages/buyer/BuyProduct'
+import Productinfo from './Pages/buyer/Productinfo'
 
 
 function App() {
@@ -35,7 +36,7 @@ function App() {
         {/* Buyer Product Routes */}
         <Route path="/cart" element={<Cart />} />
         <Route path="/product/:productId" element={<BuyProduct />} />
-
+          <Route path="/productinfo/:itemId" element={<Productinfo />} />
         {/* Seller Dashboard Routes - Nested routing */}
         <Route path="/seller/*" element={<SellerDashboard />} />
       </Routes>

@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Calendar, ShoppingBag, ShoppingCart } from "lucide-react";
 
-const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
+const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick }) => {
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
@@ -32,7 +32,9 @@ const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
       onHoverEnd={() => setIsHovered(false)}
       className="w-full"
     >
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-lg hover:shadow-2xl transition-shadow duration-300 bg-white/5 backdrop-blur-md">
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-lg hover:shadow-2xl transition-shadow duration-300 bg-white/5 backdrop-blur-md"
+      onClick={()=> onProductClick?.(product.itemId)}
+      >
         {/* Product Image */}
         <div
           className="relative w-full h-48 overflow-hidden bg-gradient-to-br from-gray-800/50 to-gray-900/50 cursor-pointer"

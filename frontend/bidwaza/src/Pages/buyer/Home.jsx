@@ -132,6 +132,10 @@ export default function Home() {
     </AnimatePresence>
   );
 
+  const handleclick =( itemId)=> {
+    navigate(`/productinfo/${itemId}`);
+  }
+
   // === Pagination Component ===
   const PaginationControls = () => (
     <div className="flex justify-center items-center gap-3 mt-12">
@@ -177,6 +181,7 @@ export default function Home() {
     </div>
   );
 
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
 
@@ -199,6 +204,7 @@ export default function Home() {
                     product={product}
                     onBuyClick={handleBuyClick}
                     onAddToCart={onAddToCart}
+                    onClick={handleclick}
                   />
                 ))}
               </div>
