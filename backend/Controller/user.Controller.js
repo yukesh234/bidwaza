@@ -3,6 +3,9 @@ import {uploadImage,deleteImage} from "../Service/cloudinary.js";
 import { getConnection } from "../Db/Db.js";
 import oracledb from "oracledb";
 import jwt from 'jsonwebtoken'
+
+
+
 export async function uploadProfile(req, res) {
   try {
     const userid  = req.user.ID;
@@ -116,23 +119,23 @@ export async function getallProducts(req, res) {
     connection = await getConnection();
 
     // 🔹 Dynamic WHERE clause
-    let whereClause = "";
-    const binds = { offset, limit };
+let whereClause = " WHERE p.STATUS = 'ACTIVE'";
+const binds = { offset, limit };
 
-    if (category) {
-      whereClause += (whereClause ? " AND" : " WHERE") + " p.CATEGORY = :category";
-      binds.category = category;
-    }
+if (category) {
+  whereClause += " AND p.CATEGORY = :category";
+  binds.category = category;
+}
 
-    if (product_type) {
-      whereClause += (whereClause ? " AND" : " WHERE") + " p.PRODUCT_TYPE = :productType";
-      binds.productType = product_type;
-    }
+if (product_type) {
+  whereClause += " AND p.PRODUCT_TYPE = :productType";
+  binds.productType = product_type;
+}
 
-    if (userId) {
-      whereClause += (whereClause ? " AND" : " WHERE") + " p.SELLER_ID != :userId";
-      binds.userId = userId;
-    }
+if (userId) {
+  whereClause += " AND p.SELLER_ID != :userId";
+  binds.userId = userId;
+}
 
     
     const productsQuery = `
@@ -163,7 +166,7 @@ export async function getallProducts(req, res) {
       ${whereClause}
     `;
 
-    // ✅ Separate binds for count query (remove offset/limit)
+   
     const countBinds = { ...binds };
     delete countBinds.offset;
     delete countBinds.limit;
@@ -248,3 +251,102 @@ export async function getallProducts(req, res) {
   }
 }
 
+export async function getProductById(req, res) {
+  const { ItemId } = req.params;  // or const ItemId = req.params.ItemId;
+  let connection;
+  try {
+    if (!ItemId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Item id is required" 
+      });
+    }
+
+    connection = await getConnection();
+    
+    const result = await connection.execute(
+      `SELECT 
+         p.ITEM_ID,
+         p.SELLER_ID,
+         p.TITLE,
+         TO_CHAR(p.DESCRIPTION) AS DESCRIPTION,  -- FIXED: Added TO_CHAR for CLOB
+         p.CATEGORY,
+         p.STOCK,
+         p.PRODUCT_TYPE,
+         p.AMOUNT,
+         p.CREATED_AT,
+         u.FIRST_NAME || ' ' || u.LAST_NAME AS SELLER_NAME,
+         u.EMAIL AS SELLER_EMAIL,
+         u.PROFILE_PICTURE_URL AS SELLER_PROFILE_PICTURE
+       FROM products p
+       LEFT JOIN users u ON p.SELLER_ID = u.ID
+       WHERE p.ITEM_ID = :itemId
+         AND p.STATUS = 'ACTIVE'`,
+      { itemId: ItemId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Product not found" 
+      });
+    }
+
+    const product = result.rows[0];
+
+    // Fetch product images
+    const imagesResult = await connection.execute(
+      `SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER 
+       FROM product_images 
+       WHERE ITEM_ID = :itemId 
+       ORDER BY DISPLAY_ORDER`,
+      { itemId: ItemId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    
+    const images = imagesResult.rows.map((img) => ({
+      url: img.IMAGE_URL,
+      isPrimary: img.IS_PRIMARY === "Y",
+      displayOrder: img.DISPLAY_ORDER,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "Product fetched successfully",
+      data: {
+        itemId: product.ITEM_ID,
+        title: product.TITLE,
+        description: product.DESCRIPTION,
+        category: product.CATEGORY,
+        stock: product.STOCK,
+        productType: product.PRODUCT_TYPE,
+        amount: product.AMOUNT,
+        createdAt: product.CREATED_AT,
+        seller: {
+          sellerId: product.SELLER_ID,
+          name: product.SELLER_NAME,
+          email: product.SELLER_EMAIL,
+          profilePicture: product.SELLER_PROFILE_PICTURE
+        },
+        images
+      }
+    });
+
+  } catch (error) {
+    console.error("Get product by ID error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch product",
+      error: error.message,
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeError) {
+        console.error("Connection close error:", closeError);
+      }
+    }
+  }
+}

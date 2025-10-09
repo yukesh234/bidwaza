@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../Context/Authcontext'
+import { useAuth } from '../../Context/Authcontext.jsx'
 import { 
   ChevronDown, 
   User, 
@@ -105,7 +105,7 @@ function Navbar() {
         {
             name: "Switch to Seller",
             icon: Store,
-            path: "/seller-dashboard",
+            path: "/seller/overview",
             description: "Start selling"
         },
         {
@@ -119,6 +119,7 @@ function Navbar() {
     const handleLogout = () => {
         setIsDropdownOpen(false);
         logout();
+          window.location.reload();
     };
 
     // Handle cart click

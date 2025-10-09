@@ -23,9 +23,12 @@ function Cart() {
       if (response.success) {
         console.log("Cart data:", response)
         // Check if items exists and is not empty
-        const itemsArray = (response.items && Object.keys(response.items).length > 0) ? [response.items] : []
+       const itemsArray = Array.isArray(response.items) ? response.items : []
         setCartItems(itemsArray)
         setSummary(response.summary || {})
+
+       
+
         
         if (itemsArray.length > 0) {
           toast.success("Cart loaded successfully")
@@ -199,7 +202,7 @@ function Cart() {
                           <h3 className="text-xl font-bold text-white mb-1">{item.title}</h3>
                           <p className="text-white/60 text-sm mb-2">{item.description}</p>
                           <p className="text-white/80 text-sm">
-                            Sold by: <span className="text-cyan-300 font-semibold">{item.seller.name}</span>
+                            Sold by: <span className="text-cyan-300 font-semibold">{item?.seller?.name}</span>
                           </p>
                         </div>
                         <button

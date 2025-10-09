@@ -13,27 +13,31 @@ import Uploadpfp from './Pages/buyer/Uploadpfp'
 import SellerDashboard from './Pages/seller/SellerDashboard'
 import Cart from "./Pages/buyer/Cart"
 import BuyProduct from './Pages/buyer/BuyProduct'
-function App() {
-  
 
+
+function App() {
   return (
     <>
-      
-     <Routes>
-       <Route element={<Layout />}>
-        <Route path="/" element={<Home />} />
-      </Route>
+      <Routes>
+        {/* Buyer Routes with Layout */}
+        <Route element={<Layout />}>
+          <Route path="/" element={<Home />} />
+        </Route>
 
-      <Route element={<UserLayout/>}>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/verification" element={<Verification />} />
-        <Route path="/uploadpfp" element={<Uploadpfp/>} />
-      </Route>
-     
-      <Route path="/seller-dashboard" element={<SellerDashboard/>} />
-      <Route path="/cart" element={<Cart/>} />
-       <Route path="/product/:productId" element={<BuyProduct/>} />
+        {/* User Auth Routes */}
+        <Route element={<UserLayout />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/verification" element={<Verification />} />
+          <Route path="/uploadpfp" element={<Uploadpfp />} />
+        </Route>
+
+        {/* Buyer Product Routes */}
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/product/:productId" element={<BuyProduct />} />
+
+        {/* Seller Dashboard Routes - Nested routing */}
+        <Route path="/seller/*" element={<SellerDashboard />} />
       </Routes>
     </>
   )

@@ -40,14 +40,16 @@ export const addtocart = async(product_id) =>
 export const getCart = async () => {
   try {
     const response = await api.get("/cart/getcart"); // your cart endpoint
+    console.log("getcard endpoint")
+    console.table([ response.data.data.items])
     if (response.data.success) {
       // Return structured cart data
-      console.log("Cart fetched successfully:", response.data);
       return {
         success:true,
-        items: response.data.data.items[0] || [],
+        items: response.data.data.items || [],
         summary: response.data.data.summary || {},
       };
+     
     } else {
       console.error("Failed to fetch cart:", response.data.message);
       return { items: [], summary: {} };

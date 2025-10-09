@@ -6,18 +6,18 @@ import { Calendar, ShoppingBag, ShoppingCart } from "lucide-react";
 const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
+  const [showFullDesc, setShowFullDesc] = useState(false);
 
   const primaryImage =
-    product.images?.find((img) => img.isPrimary)?.url || 
-    product.images?.[0]?.url || 
+    product.images?.find((img) => img.isPrimary)?.url ||
+    product.images?.[0]?.url ||
     "/placeholder.png";
 
   const formattedDate = new Date(product.createdAt).toLocaleDateString("en-US", {
     month: "short",
-    day: "numeric"
+    day: "numeric",
   });
 
-  // Get initials for avatar fallback
   const getInitials = (name) => {
     return name?.charAt(0).toUpperCase() || "?";
   };
@@ -33,8 +33,8 @@ const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
       className="w-full"
     >
       <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-lg hover:shadow-2xl transition-shadow duration-300 bg-white/5 backdrop-blur-md">
-        {/* Product Image with Overlay */}
-        <div 
+        {/* Product Image */}
+        <div
           className="relative w-full h-48 overflow-hidden bg-gradient-to-br from-gray-800/50 to-gray-900/50 cursor-pointer"
           onClick={() => onProductClick?.(product)}
         >
@@ -45,8 +45,8 @@ const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
             animate={{ scale: isHovered ? 1.1 : 1 }}
             transition={{ duration: 0.6, ease: "easeOut" }}
           />
-          
-          {/* Gradient Overlay on Hover */}
+
+          {/* Overlay */}
           <motion.div
             className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0"
             initial={{ opacity: 0 }}
@@ -95,15 +95,30 @@ const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
             {product.title}
           </motion.h3>
 
-          {/* Description */}
-          <motion.p
-            className="text-sm text-gray-400 line-clamp-2 leading-relaxed"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.25 }}
+          {/* Description with Smooth Expand */}
+          <motion.div
+            layout
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="relative"
           >
-            {product.description}
-          </motion.p>
+            <motion.p
+              layout
+              className={`text-sm text-gray-400 leading-relaxed ${
+                showFullDesc ? "line-clamp-none" : "line-clamp-2"
+              }`}
+            >
+              {product.description}
+            </motion.p>
+
+            {product.description?.length > 100 && (
+              <button
+                onClick={() => setShowFullDesc((prev) => !prev)}
+                className="text-xs mt-1 text-blue-400 hover:text-purple-400 transition-colors"
+              >
+                {showFullDesc ? "See Less" : "See More"}
+              </button>
+            )}
+          </motion.div>
 
           {/* Price Section */}
           <motion.div
@@ -128,7 +143,6 @@ const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
               transition={{ type: "spring", stiffness: 300 }}
               onClick={() => onSellerClick?.(product.seller)}
             >
-              {/* Avatar */}
               <div className="relative w-8 h-8 rounded-full overflow-hidden ring-2 ring-purple-500/50">
                 {product.seller?.profilePicture ? (
                   <img
@@ -142,7 +156,7 @@ const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
                   </div>
                 )}
               </div>
-              
+
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-white">
                   {product.seller?.name}
@@ -157,29 +171,33 @@ const ProductCard = ({ product, onBuyClick, onAddToCart }) => {
             </div>
           </div>
 
-          {/* Buy Now Button */}
+          {/* Buy Now */}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onBuyClick?.(product)}
             className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center gap-2 group"
           >
-            <ShoppingBag size={18} className="group-hover:rotate-12 transition-transform duration-200" />
+            <ShoppingBag
+              size={18}
+              className="group-hover:rotate-12 transition-transform duration-200"
+            />
             <span>Buy Now</span>
           </motion.button>
 
-          {/* Add to Cart Button */}
+          {/* Add to Cart */}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onAddToCart?.(product)}
             className="w-full mt-2 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white font-semibold hover:bg-white/20 transition-colors flex items-center justify-center gap-2 group"
           >
-            <ShoppingCart size={18} className="group-hover:scale-110 transition-transform duration-200" />
+            <ShoppingCart
+              size={18}
+              className="group-hover:scale-110 transition-transform duration-200"
+            />
             <span>Add to Cart</span>
           </motion.button>
-
-          
         </div>
       </div>
     </motion.div>

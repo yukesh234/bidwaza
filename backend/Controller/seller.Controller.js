@@ -324,7 +324,8 @@ async function getSellerProducts(req, res) {
         STOCK,
         PRODUCT_TYPE,
         AMOUNT,
-        CREATED_AT
+        CREATED_AT,
+        STATUS
       FROM products 
       ${whereClause}
       ORDER BY CREATED_AT DESC
@@ -378,6 +379,7 @@ async function getSellerProducts(req, res) {
             productType: product.PRODUCT_TYPE,
             amount: product.AMOUNT,
             createdAt: product.CREATED_AT,
+            status: product.STATUS,
             images: imagesResult.rows.map(img => ({
               url: img.IMAGE_URL,
               isPrimary: img.IS_PRIMARY === 'Y',
