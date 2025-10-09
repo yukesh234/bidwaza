@@ -11,7 +11,6 @@
       // Navigate to product detail or checkout
       console.log('Buying:', product);
       navigate(`/product/${product.itemId}`);
-    
   };
 
   const onAddToCart = async (product) =>{

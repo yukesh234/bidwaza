@@ -43,10 +43,10 @@ function SellerNavbar({ onCreateClick }) {
       <div className='max-w-7xl mx-auto px-6 py-4'>
         <div className='flex justify-between items-center'>
           <div className='flex items-center gap-4'>
-            <div className='w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl flex items-center justify-center'>
+            <div className='w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl flex items-center justify-center -ml-10'>
               <Store className='w-6 h-6 text-white' />
             </div>
-            <div>
+            <div >
               <h1 className='text-2xl font-bold text-white'>Seller Dashboard</h1>
               <p className='text-white/60 text-sm'>Manage your store</p>
             </div>
@@ -66,12 +66,12 @@ function SellerNavbar({ onCreateClick }) {
               <span className='absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full'></span>
             </button>
 
-            <div className='relative' ref={dropdownRef}>
+            <div className='relative -mr-12' ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className='flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 rounded-full hover:border-cyan-400/50 transition-all'
               >
-                <div className='relative'>
+                <div className='relative '>
                   {user.profilePicture ? (
                     <img 
                       src={user.profilePicture} 

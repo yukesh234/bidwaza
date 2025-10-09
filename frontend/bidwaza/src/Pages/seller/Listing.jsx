@@ -143,11 +143,11 @@ function Listing({ onCreateClick, onDelete, onStatusChange }) {
             onChange={(e) => handleStatusChange(e.target.value)} 
             className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-cyan-400/50"
           >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="sold">Sold</option>
-            <option value="expired">Expired</option>
+            <option value="all" className="bg-slate-800 text-white">All Status</option>
+            <option value="active"  className="bg-slate-800 text-white">Active</option>
+            <option value="inactive" className="bg-slate-800 text-white">Inactive</option>
+            <option value="sold"className="bg-slate-800 text-white">Sold</option>
+            <option value="expired" className="bg-slate-800 text-white">Expired</option>
           </select>
         </div>
         <button 
