@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {getProductById} from "../../services/userservices.js"
 import ProductInfoCard from '../../Components/ProductInfoCard'
-import {handleBuyClick, onAddToCart as handleCartclick} from '../../utils/product.js'
+import { onAddToCart as handleCartclick} from '../../utils/product.js'
 function Productinfo() {
    
     const {itemId} = useParams();  
@@ -17,7 +17,7 @@ function Productinfo() {
         console.log("Add to cart clicked");
       }
         const onBuyClick = async () =>{
-        handleBuyClick(product);
+      
         console.log("Buy Now clicked");
       }
 

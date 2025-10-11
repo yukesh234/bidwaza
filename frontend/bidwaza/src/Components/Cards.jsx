@@ -33,8 +33,12 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
       className="w-full"
     >
       <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-lg hover:shadow-2xl transition-shadow duration-300 bg-white/5 backdrop-blur-md"
-      onClick={()=> onProductClick?.(product.itemId)}
+   
       >
+
+        <div
+         onClick={()=> onProductClick?.(product.itemId)}
+        >
         {/* Product Image */}
         <div
           className="relative w-full h-48 overflow-hidden bg-gradient-to-br from-gray-800/50 to-gray-900/50 cursor-pointer"
@@ -121,7 +125,7 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
               </button>
             )}
           </motion.div>
-
+</div>
           {/* Price Section */}
           <motion.div
             className="flex items-baseline gap-2"
@@ -177,7 +181,13 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => onBuyClick?.(product)}
+            onClick={(e) => {
+                e.stopPropagation();
+                console.log(product?.amount)
+              onBuyClick?.(product,1,product?.amount)
+              
+            }}
+              
             className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center gap-2 group"
           >
             <ShoppingBag
@@ -191,7 +201,9 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => onAddToCart?.(product)}
+            onClick={(e) => {
+               e.stopPropagation();
+              onAddToCart?.(product)}}
             className="w-full mt-2 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white font-semibold hover:bg-white/20 transition-colors flex items-center justify-center gap-2 group"
           >
             <ShoppingCart

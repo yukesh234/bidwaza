@@ -7,6 +7,8 @@ import { useNavigate } from "react-router-dom";
 import ProductCard from "../../Components/Cards.jsx"; // Import the new component
 import {addtocart} from '../../services/userservices.js'
 import toast from "react-hot-toast";
+import {usePayment} from '../../hooks/usePayment.js'
+
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -19,6 +21,7 @@ export default function Home() {
   });
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const {handleBuyNow,handleCartCheckout} = usePayment();
 
   // === Fetch Products (Axios) ===
   const fetchProducts = async (page = 1) => {
@@ -49,16 +52,7 @@ export default function Home() {
     }
   };
 
-  // === Handle Buy Click ===
-  const handleBuyClick = (product) => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-    } else {
-      // Navigate to product detail or checkout
-      console.log('Buying:', product);
-      navigate(`/product/${product.itemId}`);
-    }
-  };
+ 
 
   const onAddToCart = async (product) =>{
     if(!isAuthenticated)
@@ -202,7 +196,7 @@ export default function Home() {
                   <ProductCard
                     key={product.itemId}
                     product={product}
-                    onBuyClick={handleBuyClick}
+                    onBuyClick={handleBuyNow}
                     onAddToCart={onAddToCart}
                     onClick={handleclick}
                   />

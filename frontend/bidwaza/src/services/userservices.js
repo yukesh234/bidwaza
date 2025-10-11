@@ -40,8 +40,7 @@ export const addtocart = async(product_id) =>
 export const getCart = async () => {
   try {
     const response = await api.get("/cart/getcart"); // your cart endpoint
-    console.log("getcard endpoint")
-    console.table([ response.data.data.items])
+    
     if (response.data.success) {
       // Return structured cart data
       return {
@@ -96,4 +95,65 @@ export const getProductById = async (itemId) =>{
     return {success:false, message: error.response?.data?.message || "Error fetching product details"}
   }
 }
+
+// NEW: Initiate payment for Buy Now (single product)
+export const initiateBuyNowPayment = async (productId, quantity,amount) => {
+  try {
+    const response = await api.post('/esewa/pay', {
+     // Backend will calculate
+      productId,
+      quantity,
+      amount
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Buy now payment error:', error);
+    return { 
+      success: false, 
+      message: error.response?.data?.message || 'Payment initiation failed' 
+    };
+  }
+};
+
+// NEW: Initiate payment for Cart (multiple products)
+export const initiateCartPayment = async (cartItems, totalAmount) => {
+  try {
+    const response = await api.post('/esewa/pay', {
+      amount: totalAmount,
+      cartItems: cartItems.map(item => ({
+        productId: item.itemId || item.productId,
+        quantity: item.quantity
+      }))
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Cart payment error:', error);
+    return { 
+      success: false, 
+      message: error.response?.data?.message || 'Payment initiation failed' 
+    };
+  }
+};
+
+export const verifyPayment = async (paymentData) => {
+  try {
+    console.log("=== VERIFICATION API CALL ===");
+    console.log("Payment data being sent:", paymentData);
+    console.log("API endpoint:", '/esewa/verify');
+    
+    const response = await api.post('/esewa/verify', paymentData);
+    
+    console.log("Verification response received:", response.data);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Payment verification error:', error);
+    console.error('Error response:', error.response?.data);
+    console.error('Error status:', error.response?.status);
+    return { 
+      success: false, 
+      message: error.response?.data?.message || 'Payment verification failed' 
+    };
+  }
+};
+
 

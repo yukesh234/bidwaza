@@ -25,11 +25,7 @@ function Cart() {
         // Check if items exists and is not empty
        const itemsArray = Array.isArray(response.items) ? response.items : []
         setCartItems(itemsArray)
-        setSummary(response.summary || {})
-
-       
-
-        
+        setSummary(response.summary || {})        
         if (itemsArray.length > 0) {
           toast.success("Cart loaded successfully")
         }
@@ -274,7 +270,9 @@ function Cart() {
                   </div>
                 </div>
 
-                <button className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-4">
+                <button className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-4"
+                onClick={()=>  console.log("cartItems and summary",cartItems, summary)}
+                >
                   Proceed to Checkout
                   <ArrowRight className="w-5 h-5" />
                 </button>

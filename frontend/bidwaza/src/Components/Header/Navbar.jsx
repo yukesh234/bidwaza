@@ -24,7 +24,7 @@ function Navbar() {
     const navigate = useNavigate();
     
     const { logout, isAuthenticated, user } = useAuth();
-    console.log(`user data ${JSON.stringify(user)}`)
+   
     
     // Fetch cart count
     useEffect(() => {

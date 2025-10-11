@@ -4,14 +4,6 @@
  
  
  
- 
- // === Handle Buy Click ===
-  const handleBuyClick = (product) => {
-
-      // Navigate to product detail or checkout
-      console.log('Buying:', product);
-      navigate(`/product/${product.itemId}`);
-  };
 
   const onAddToCart = async (product) =>{
    
@@ -28,4 +20,4 @@
     
   }
 
-  export {handleBuyClick,onAddToCart};
+  export {onAddToCart};
