@@ -11,7 +11,8 @@ import {
   Crown,
   Search,
   ShoppingCart,
-  X
+  X,
+  Package
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getCart } from '../../services/userservices.js'
@@ -109,9 +110,9 @@ function Navbar() {
             description: "Start selling"
         },
         {
-            name: "Settings",
-            icon: Settings,
-            path: "/settings",
+            name: "Orders",
+            icon: Package,
+            path: "/orders",
             description: "App preferences"
         }
     ];

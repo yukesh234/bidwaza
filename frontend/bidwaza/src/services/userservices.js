@@ -157,3 +157,21 @@ export const verifyPayment = async (paymentData) => {
 };
 
 
+export const getOrderhistory = async () => {
+  try {
+    const response = await api.get('/user/getOrderHistory');
+    if (response.data.success) {
+      // Return the full data object which contains orders array
+      return { 
+        success: true, 
+        data: response.data.data // This contains { orders: [...], totalOrders: 7 }
+      };
+    }
+    return { success: false, message: 'Failed to fetch orders' };
+  } catch (error) {
+    return { 
+      success: false, 
+      message: error.response?.data?.message || "Error fetching order history" 
+    };
+  }
+};

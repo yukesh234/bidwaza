@@ -350,3 +350,290 @@ export async function getProductById(req, res) {
     }
   }
 }
+
+// Get user's order history
+export async function getOrderHistory(req, res) {
+  let connection;
+  try {
+    const userId = req.user.ID;
+
+    connection = await getConnection();
+
+    // Get all orders for the user
+    const ordersResult = await connection.execute(
+      `SELECT 
+        ORDER_ID,
+        ORDER_NUMBER,
+        TOTAL_AMOUNT,
+        ORDER_STATUS,
+        PAYMENT_STATUS,
+        ESEWA_TXN_ID,
+        ORDER_DATE,
+        UPDATED_AT
+      FROM orders
+      WHERE USER_ID = :userId
+      ORDER BY ORDER_DATE DESC`,
+      { userId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    if (ordersResult.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No orders found",
+        data: {
+          orders: [],
+          totalOrders: 0
+        }
+      });
+    }
+
+    // Get order items with product and seller details for each order
+    const ordersWithDetails = await Promise.all(
+      ordersResult.rows.map(async (order) => {
+        const itemsResult = await connection.execute(
+          `SELECT 
+            oi.ORDER_ITEM_ID,
+            oi.ITEM_ID,
+            oi.PRODUCT_TITLE,
+            oi.PRICE_AT_PURCHASE,
+            oi.QUANTITY,
+            oi.SUBTOTAL,
+            oi.CREATED_AT,
+            u.ID as SELLER_ID,
+            u.FIRST_NAME || ' ' || u.LAST_NAME as SELLER_NAME,
+            u.EMAIL as SELLER_EMAIL,
+            u.PROFILE_PICTURE_URL as SELLER_PROFILE_PICTURE
+          FROM order_items oi
+          LEFT JOIN users u ON oi.SELLER_ID = u.ID
+          WHERE oi.ORDER_ID = :orderId
+          ORDER BY oi.CREATED_AT`,
+          { orderId: order.ORDER_ID },
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        // Get product images for each item
+        const itemsWithImages = await Promise.all(
+          itemsResult.rows.map(async (item) => {
+            try {
+              const imagesResult = await connection.execute(
+                `SELECT IMAGE_URL, IS_PRIMARY
+                 FROM product_images
+                 WHERE ITEM_ID = :itemId
+                 ORDER BY DISPLAY_ORDER`,
+                { itemId: item.ITEM_ID },
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
+              );
+
+              const primaryImage = imagesResult.rows.find(img => img.IS_PRIMARY === 'Y')?.IMAGE_URL ||
+                                 imagesResult.rows[0]?.IMAGE_URL || null;
+
+              return {
+                orderItemId: item.ORDER_ITEM_ID,
+                itemId: item.ITEM_ID,
+                productTitle: item.PRODUCT_TITLE,
+                priceAtPurchase: item.PRICE_AT_PURCHASE,
+                quantity: item.QUANTITY,
+                subtotal: item.SUBTOTAL,
+                primaryImage: primaryImage,
+                seller: {
+                  sellerId: item.SELLER_ID,
+                  name: item.SELLER_NAME,
+                  email: item.SELLER_EMAIL,
+                  profilePicture: item.SELLER_PROFILE_PICTURE
+                }
+              };
+            } catch (imageError) {
+              console.error('Error fetching images for item:', item.ITEM_ID, imageError);
+              return {
+                orderItemId: item.ORDER_ITEM_ID,
+                itemId: item.ITEM_ID,
+                productTitle: item.PRODUCT_TITLE,
+                priceAtPurchase: item.PRICE_AT_PURCHASE,
+                quantity: item.QUANTITY,
+                subtotal: item.SUBTOTAL,
+                primaryImage: null,
+                seller: {
+                  sellerId: item.SELLER_ID,
+                  name: item.SELLER_NAME,
+                  email: item.SELLER_EMAIL,
+                  profilePicture: item.SELLER_PROFILE_PICTURE
+                }
+              };
+            }
+          })
+        );
+
+        return {
+          orderId: order.ORDER_ID,
+          orderNumber: order.ORDER_NUMBER,
+          totalAmount: order.TOTAL_AMOUNT,
+          orderStatus: order.ORDER_STATUS,
+          paymentStatus: order.PAYMENT_STATUS,
+          esewaTxnId: order.ESEWA_TXN_ID,
+          orderDate: order.ORDER_DATE,
+          updatedAt: order.UPDATED_AT,
+          items: itemsWithImages,
+          itemCount: itemsWithImages.length
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Order history fetched successfully",
+      data: {
+        orders: ordersWithDetails,
+        totalOrders: ordersWithDetails.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get order history error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch order history",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Connection close error:', err);
+      }
+    }
+  }
+}
+
+// Get single order details by order ID
+export async function getOrderById(req, res) {
+  let connection;
+  try {
+    const userId = req.user.ID;
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "Order ID is required"
+      });
+    }
+
+    connection = await getConnection();
+
+    // Get order details
+    const orderResult = await connection.execute(
+      `SELECT 
+        ORDER_ID,
+        ORDER_NUMBER,
+        TOTAL_AMOUNT,
+        ORDER_STATUS,
+        PAYMENT_STATUS,
+        ESEWA_TXN_ID,
+        ORDER_DATE,
+        UPDATED_AT
+      FROM orders
+      WHERE ORDER_ID = :orderId AND USER_ID = :userId`,
+      { orderId, userId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Get order items with seller details
+    const itemsResult = await connection.execute(
+      `SELECT 
+        oi.ORDER_ITEM_ID,
+        oi.ITEM_ID,
+        oi.PRODUCT_TITLE,
+        oi.PRICE_AT_PURCHASE,
+        oi.QUANTITY,
+        oi.SUBTOTAL,
+        oi.CREATED_AT,
+        u.ID as SELLER_ID,
+        u.FIRST_NAME || ' ' || u.LAST_NAME as SELLER_NAME,
+        u.EMAIL as SELLER_EMAIL,
+        u.PROFILE_PICTURE_URL as SELLER_PROFILE_PICTURE
+      FROM order_items oi
+      LEFT JOIN users u ON oi.SELLER_ID = u.ID
+      WHERE oi.ORDER_ID = :orderId
+      ORDER BY oi.CREATED_AT`,
+      { orderId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    // Get images for each item
+    const itemsWithImages = await Promise.all(
+      itemsResult.rows.map(async (item) => {
+        const imagesResult = await connection.execute(
+          `SELECT IMAGE_URL, IS_PRIMARY
+           FROM product_images
+           WHERE ITEM_ID = :itemId
+           ORDER BY DISPLAY_ORDER`,
+          { itemId: item.ITEM_ID },
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        const primaryImage = imagesResult.rows.find(img => img.IS_PRIMARY === 'Y')?.IMAGE_URL ||
+                           imagesResult.rows[0]?.IMAGE_URL || null;
+
+        return {
+          orderItemId: item.ORDER_ITEM_ID,
+          itemId: item.ITEM_ID,
+          productTitle: item.PRODUCT_TITLE,
+          priceAtPurchase: item.PRICE_AT_PURCHASE,
+          quantity: item.QUANTITY,
+          subtotal: item.SUBTOTAL,
+          primaryImage: primaryImage,
+          seller: {
+            sellerId: item.SELLER_ID,
+            name: item.SELLER_NAME,
+            email: item.SELLER_EMAIL,
+            profilePicture: item.SELLER_PROFILE_PICTURE
+          }
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Order details fetched successfully",
+      data: {
+        orderId: order.ORDER_ID,
+        orderNumber: order.ORDER_NUMBER,
+        totalAmount: order.TOTAL_AMOUNT,
+        orderStatus: order.ORDER_STATUS,
+        paymentStatus: order.PAYMENT_STATUS,
+        esewaTxnId: order.ESEWA_TXN_ID,
+        orderDate: order.ORDER_DATE,
+        updatedAt: order.UPDATED_AT,
+        items: itemsWithImages,
+        itemCount: itemsWithImages.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get order by ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch order details",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Connection close error:', err);
+      }
+    }
+  }
+}

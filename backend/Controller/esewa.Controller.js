@@ -142,7 +142,7 @@ export async function verify(req, res) {
         // Create order
         const orderResult = await connection.execute(
             `INSERT INTO orders (USER_ID, ORDER_NUMBER, TOTAL_AMOUNT, ORDER_STATUS, PAYMENT_STATUS, ESEWA_TXN_ID)
-             VALUES (:userId, 'ORD-' || TO_CHAR(SYSDATE, 'YYYYMMDD') || '-' || order_number_seq.NEXTVAL, :total, 'COMPLETED', 'PAID', :txnId)
+             VALUES (:userId, 'ORD-' || TO_CHAR(SYSDATE, 'YYYYMMDD') || '-' || order_number_seq.NEXTVAL, :total, 'PENDING', 'PAID', :txnId)
              RETURNING ORDER_ID INTO :orderId`,
             {
                 userId,

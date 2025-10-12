@@ -69,3 +69,43 @@ export const getListing = async (page = 1, limit = 5, search = "", status = "all
   }
 };
 
+
+export const getSellerOrders = async () => {
+  try {
+    const response = await api.get("/seller/getsellerOrders");
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data, // Contains { orders: [...], totalOrders: 1, totalRevenue: 2699 }
+        message: response.data.message
+      };
+    } else {
+      return { success: false, message: response.data.message };
+    }
+  } catch (error) {
+    console.log(error.message);
+    return { success: false, message: error.response?.data?.message || error.message };
+  }
+};
+
+// NEW: Add this function for updating order status
+export const updateOrderStatus = async (orderId, newStatus) => {
+  try {
+    const response = await api.put('/seller/updateOrderStatus', {
+      orderId,
+      orderStatus: newStatus
+    });
+    
+    if (response.data.success) {
+      return { success: true, message: response.data.message };
+    }
+    return { success: false, message: response.data.message || 'Failed to update order status' };
+  } catch (error) {
+    console.error('Update order status error:', error);
+    return { 
+      success: false, 
+      message: error.response?.data?.message || 'Error updating order status' 
+    };
+  }
+};
+

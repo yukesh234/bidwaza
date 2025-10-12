@@ -6,8 +6,11 @@ import Overview from './Overview'
 import Listing from './Listing'
 import CommingSoon from './CommingSoon'
 import CreateListingModal from '../../Components/seller/CreateListingModal'
-import { TrendingUp, MessageCircle, Settings } from "lucide-react"
+import { TrendingUp, MessageCircle, Settings,Package
+
+ } from "lucide-react"
 import toast from 'react-hot-toast'
+import Order from './Order'
 
 function SellerDashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -105,10 +108,16 @@ function SellerDashboard() {
                 element={<CommingSoon icon={MessageCircle} title="Messages" />} 
               />
               <Route 
+                path="/orders" 
+                element={<Order icon={Package} title="Orders" />} 
+              />
+              <Route 
                 path="/settings" 
                 element={<CommingSoon icon={Settings} title="Settings" />} 
               />
+              
             </Routes>
+            
           </main>
         </div>
       </div>

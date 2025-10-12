@@ -1,27 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import OrderCard from '../../Components/buyer/OrderCard';
-import { getOrderhistory } from '../../services/userservices';
+import ManageOrderCard from '../../Components/seller/ManageOrder.jsx';
+import { getSellerOrders, updateOrderStatus } from '../../services/sellerservices.js';
 import toast from 'react-hot-toast';
-import { Package, MoveLeft, Loader } from 'lucide-react';
+import { Package, MoveLeft, Loader, DollarSign } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
-function Orders() {
+function Order() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalRevenue, setTotalRevenue] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchOrders();
-  }, []); // ⭐ Added dependency array - was missing!
+  }, []);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await getOrderhistory();
+      const response = await getSellerOrders();
       
       if (response.success) {
-        setOrders(response.data.orders || []); // ⭐ Fixed path
+        setOrders(response.data.orders || []);
+        setTotalRevenue(response.data.totalRevenue || 0);
         if (response.data.orders?.length > 0) {
           toast.success('Orders loaded successfully');
         }
@@ -34,6 +36,23 @@ function Orders() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    // Refresh orders after status update
+   try {
+     const response = await updateOrderStatus(orderId, newStatus);
+      if (response.success) {
+        toast.success(response.message || 'Order status updated');
+        fetchOrders();
+      } else {
+        toast.error(response.message || 'Failed to update order status');
+      }
+   } catch (error) {
+    console.error('Status update error:', error);
+    toast.error('Error updating order status');
+   }
+    
   };
 
   if (loading) {
@@ -63,7 +82,7 @@ function Orders() {
           className='flex items-center gap-2 text-white/80 hover:text-cyan-300 transition-all duration-300 group'
         >
           <MoveLeft className='h-5 w-5 group-hover:-translate-x-1 transition-transform duration-300' />
-          Back to Home
+          Back to Dashboard
         </NavLink>
       </motion.div>
 
@@ -76,11 +95,15 @@ function Orders() {
         >
           <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
             <Package className="w-10 h-10 text-cyan-400" />
-            Your Orders
+            Manage Orders
           </h1>
-          <p className="text-white/60">
-            {orders.length} {orders.length === 1 ? 'order' : 'orders'} found
-          </p>
+          <div className="flex items-center gap-6 text-white/60">
+            <span>{orders.length} {orders.length === 1 ? 'order' : 'orders'}</span>
+            <span className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              Total Revenue: ₹{totalRevenue.toLocaleString()}
+            </span>
+          </div>
         </motion.div>
 
         {/* Empty State */}
@@ -92,15 +115,7 @@ function Orders() {
           >
             <Package className="w-20 h-20 text-white/40 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white mb-2">No orders yet</h2>
-            <p className="text-white/60 mb-6">Start shopping to see your orders here!</p>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/')}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all shadow-lg hover:shadow-cyan-500/50"
-            >
-              Browse Products
-            </motion.button>
+            <p className="text-white/60">Your orders will appear here</p>
           </motion.div>
         ) : (
           /* Orders List */
@@ -112,7 +127,10 @@ function Orders() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <OrderCard order={order} />
+                <ManageOrderCard 
+                  order={order} 
+                  onStatusUpdate={handleStatusUpdate}
+                />
               </motion.div>
             ))}
           </div>
@@ -122,4 +140,4 @@ function Orders() {
   );
 }
 
-export default Orders;
+export default Order;

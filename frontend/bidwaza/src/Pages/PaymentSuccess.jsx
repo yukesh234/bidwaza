@@ -12,35 +12,28 @@ const PaymentSuccess = () => {
   const [searchParams] = useSearchParams();
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  // Use ref to prevent multiple verifications
+
+  // Prevent multiple verifications
   const verificationAttempted = useRef(false);
 
   useEffect(() => {
-    // Prevent multiple executions
-    if (verificationAttempted.current) {
-      return;
-    }
+    if (verificationAttempted.current) return;
     verificationAttempted.current = true;
 
     const verifyPaymentHandler = async () => {
       try {
         console.log('=== Payment Success Callback ===');
-        
-        // eSewa v2 sends data as base64-encoded JSON
+
         const encodedData = searchParams.get('data');
         console.log('Encoded data:', encodedData);
 
         if (!encodedData) {
-          setTimeout(() => {
-            toast.error('Invalid payment response from eSewa');
-            setLoading(false);
-            navigate('/');
-          }, 1000);
+          toast.error('Invalid payment response from eSewa');
+          setLoading(false);
+          setTimeout(() => navigate('/'), 1000);
           return;
         }
 
-        // Decode the base64 data
         const decodedData = JSON.parse(atob(encodedData));
         console.log('Decoded payment data:', decodedData);
 
@@ -53,7 +46,6 @@ const PaymentSuccess = () => {
           return;
         }
 
-        // Check if payment was successful
         if (status !== 'COMPLETE') {
           toast.error('Payment was not completed');
           setLoading(false);
@@ -61,10 +53,7 @@ const PaymentSuccess = () => {
           return;
         }
 
-        // Get pending payment info
         const pendingPaymentStr = sessionStorage.getItem('pendingPayment');
-        console.log('Pending payment:', pendingPaymentStr);
-
         if (!pendingPaymentStr) {
           toast.error('Payment session expired');
           setLoading(false);
@@ -73,12 +62,7 @@ const PaymentSuccess = () => {
         }
 
         const pendingPayment = JSON.parse(pendingPaymentStr);
-        console.log("Pending payment data:", pendingPayment);
-
-        // Get userId from pendingPayment (NOT from user object)
         const userId = pendingPayment.userId;
-        
-        console.log("Using userId:", userId);
 
         if (!userId) {
           toast.error('Payment session incomplete. Please try again.');
@@ -87,33 +71,26 @@ const PaymentSuccess = () => {
           return;
         }
 
-        // Prepare verification data
         const paymentData = {
           transaction_uuid,
           amt: total_amount,
           refId: transaction_code,
           userId,
-          ...(pendingPayment.type === 'cart' 
+          ...(pendingPayment.type === 'cart'
             ? { cartItems: pendingPayment.cartItems }
-            : { productId: pendingPayment.productId, quantity: pendingPayment.quantity }
-          )
+            : { productId: pendingPayment.productId, quantity: pendingPayment.quantity }),
         };
 
         console.log('Sending verification request:', paymentData);
-
         const response = await verifyPayment(paymentData);
         console.log('Verification response:', response);
 
         if (response.success) {
           setVerified(true);
-          // Clear sessionStorage immediately after successful verification
+          setLoading(false);
           sessionStorage.removeItem('pendingPayment');
           toast.success('Payment successful!');
-          
-          // Navigate to orders page after 2 seconds
-          setTimeout(() => {
-            navigate('/orders');
-          }, 2000);
+          setTimeout(() => navigate('/orders'), 2000);
         } else {
           toast.error(response.message || 'Payment verification failed');
           setLoading(false);
@@ -128,7 +105,7 @@ const PaymentSuccess = () => {
     };
 
     verifyPaymentHandler();
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-800 via-teal-800 to-slate-900 flex items-center justify-center px-4">
@@ -139,10 +116,12 @@ const PaymentSuccess = () => {
       >
         {loading ? (
           <>
+            {/* ✅ Fixed loader animation */}
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="mx-auto mb-6"
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              className="mx-auto mb-6 flex justify-center"
+              style={{ transformOrigin: 'center' }}
             >
               <Loader className="w-16 h-16 text-cyan-400" />
             </motion.div>
@@ -154,7 +133,7 @@ const PaymentSuccess = () => {
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 15 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
               className="mx-auto mb-6"
             >
               <CheckCircle className="w-20 h-20 text-emerald-400" />
