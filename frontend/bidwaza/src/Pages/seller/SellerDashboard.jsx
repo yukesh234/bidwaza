@@ -7,10 +7,10 @@ import Listing from './Listing'
 import CommingSoon from './CommingSoon'
 import CreateListingModal from '../../Components/seller/CreateListingModal'
 import { TrendingUp, MessageCircle, Settings,Package
-
  } from "lucide-react"
 import toast from 'react-hot-toast'
 import Order from './Order'
+import {updatestatus} from '../../services/sellerservices.js'
 
 function SellerDashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -52,8 +52,13 @@ function SellerDashboard() {
     try {
       // TODO: Call your API to update the listing status
       // await updateListingStatusAPI(listingId, newStatus)
-      
-      toast.success(`Listing status updated to ${newStatus}`)
+      const response = await updatestatus(newStatus.toUpperCase(), listingId)
+      if(response.success)
+      {
+         console.log(listingId, newStatus)
+        toast.success(`Listing status updated to ${newStatus}`)
+      }
+     
     } catch (error) {
       console.error('Error updating listing status:', error)
       toast.error('Failed to update listing status')

@@ -88,7 +88,7 @@ export const getSellerOrders = async () => {
   }
 };
 
-// NEW: Add this function for updating order status
+
 export const updateOrderStatus = async (orderId, newStatus) => {
   try {
     const response = await api.put('/seller/updateOrderStatus', {
@@ -108,4 +108,43 @@ export const updateOrderStatus = async (orderId, newStatus) => {
     };
   }
 };
+
+export const updateStock = async (newstock, item_id) =>{
+  try {
+    const response = await api.put('/seller/updatestock',{
+      newstock,
+      item_id
+    });
+    if(response.data.success)
+    {
+      return {success: true, message: response.data.message}
+    }
+    else{
+      return {success:false, message: response.data.message}
+    }
+  } catch (error) {
+     return {success:false, message: error.response.data.message}
+  }
+}
+
+export const  updatestatus = async(newStatus, itemId) =>{
+  try {
+    const response = await api.put("/seller/updatestatus",
+      {
+       newStatus,
+       listingId:itemId
+      }
+    )
+    if(response.data.success)
+    {
+      return {success:true, message:response.data.message}
+    }
+    else{
+      return{ success:false, message:response.data.message}
+    }
+  } catch (error) {
+    console.log("error in update status", error)
+    return { success:false, message: error.message}
+  }
+}
 

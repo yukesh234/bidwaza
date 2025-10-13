@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { motion } from "framer-motion"
 import { Search, Plus, Package, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import ListingCard from '../../Components/seller/ListingCard'
-import { getListing } from '../../services/sellerservices.js' // Adjust import path as needed
+import { getListing, updateStock } from '../../services/sellerservices.js' // Adjust import path as needed
+import toast from 'react-hot-toast'
 
 function Listing({ onCreateClick, onDelete, onStatusChange }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -94,26 +95,39 @@ function Listing({ onCreateClick, onDelete, onStatusChange }) {
   }
 
   // Handle stock update
-  const handleStockUpdate = async (listingId, newStock) => {
-    try {
-      // TODO: Call your API to update stock
-      // await updateStockAPI(listingId, newStock)
-      console.log('Updating stock:', listingId, newStock)
-      
-      // Update local state
+
+const handleStockUpdate = async (listingId, newStock) => {
+  try {
+    const response = await updateStock(newStock, listingId);
+    if (response.success) {
+      toast.success(response.message);
+
+      // Update local listing immediately
       setListings(prevListings =>
-        prevListings.map(listing =>
-          listing.id === listingId
-            ? { ...listing, stock: newStock }
-            : listing
-        )
-      )
-    } catch (error) {
-      console.error('Error updating stock:', error)
-      // Revert on error by refetching
-      fetchListings(currentPage, searchTerm, filterStatus)
+        prevListings.map(listing => {
+          if (listing.id === listingId) {
+            // determine new status instantly
+            const updatedStatus = newStock === 0 ? 'sold' : 'active';
+            return { 
+              ...listing, 
+              stock: newStock, 
+              status: updatedStatus 
+            };
+          }
+          return listing;
+        })
+      );
+    } else {
+      toast.error(response.message);
     }
+  } catch (error) {
+    console.error(`update stock error: ${error}`);
+    toast.error("Failed to update stock");
+    // optional refetch to restore correct state
+    fetchListings(currentPage, searchTerm, filterStatus);
   }
+};
+
 
   const { totalCount, totalPages } = pagination
   const startIndex = (currentPage - 1) * itemsPerPage

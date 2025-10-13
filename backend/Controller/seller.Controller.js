@@ -788,8 +788,6 @@ export async function updateOrderStatus(req, res)
         message: "Order not found"
       });
     } 
-
-
   } catch (error) {
     console.error('Update order status error:', error);
     res.status(500).json({
@@ -799,5 +797,177 @@ export async function updateOrderStatus(req, res)
     });
   }
 }
+
+
+export async function updateStock(req, res) {
+  const { newstock, item_id } = req.body;
+  const sellerId = req.user.ID; // Get seller from auth token
+  let connection;
+  
+  try {
+    // Validate inputs first (before connecting to DB)
+    if (!item_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Item ID is required"
+      });
+    }
+
+    if (newstock == null || newstock < 0) { // Allow 0 stock (out of stock)
+      return res.status(400).json({
+        success: false,
+        message: "Stock cannot be negative or null"
+      });
+    }
+
+    connection = await getConnection();
+
+    // IMPORTANT: Verify this product belongs to the seller
+    const checkOwnership = await connection.execute(
+      `SELECT SELLER_ID FROM products WHERE ITEM_ID = :item_id`,
+      { item_id },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    if (checkOwnership.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    if (checkOwnership.rows[0].SELLER_ID !== sellerId) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to update this product"
+      });
+    }
+
+    // Update stock
+    const result = await connection.execute(
+      `UPDATE products SET STOCK = :newstock, UPDATED_AT = CURRENT_TIMESTAMP 
+       WHERE ITEM_ID = :item_id`,  // FIXED: Removed space in :item_id
+      { newstock, item_id },
+      { autoCommit: true }
+    );
+
+    if (result.rowsAffected === 1) {
+      res.status(200).json({
+        success: true,
+        message: "Stock updated successfully",
+        data: {
+          itemId: item_id,
+          newStock: newstock
+        }
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    
+  } catch (error) {
+    console.error('Update stock error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update stock",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Connection close error:', err);
+      }
+    }
+  }
+}
+
+export async function updateStatus(req, res) {
+  console.log("body", req.body)
+  const { listingId, newStatus } = req.body;
+  const sellerId = req.user.ID; // from auth
+  let connection;
+
+  try {
+    if (!listingId || !newStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "listingId and newStatus are required"
+      });
+    }
+
+    connection = await getConnection();
+
+    // 1️⃣ Check ownership
+    const checkOwnership = await connection.execute(
+      `SELECT SELLER_ID FROM products WHERE ITEM_ID = :item_id`,
+      { item_id: listingId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    if (checkOwnership.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    if (checkOwnership.rows[0].SELLER_ID !== sellerId) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to update this product"
+      });
+    }
+
+    // 2️⃣ Perform update
+    const result = await connection.execute(
+      `UPDATE products SET status = :newStatus WHERE item_id = :item_id`,
+      { newStatus, item_id: listingId },
+      { autoCommit: true }
+    );
+
+    // 3️⃣ Check result
+    if (result.rowsAffected === 1) {
+      return res.status(200).json({
+        success: true,
+        message: "Status updated successfully",
+        data: {
+          itemId: listingId,
+          newStatus
+        }
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+  } catch (error) {
+    console.error("Update status error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update status",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error("Error closing connection:", closeErr);
+      }
+    }
+  }
+}
+
+
+
+
+
+
 
 export { addProduct, getSellerProducts };
