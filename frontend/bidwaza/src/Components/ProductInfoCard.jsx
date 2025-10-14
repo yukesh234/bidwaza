@@ -209,7 +209,7 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => onBuyNow?.(product)}
+                onClick={() => onBuyNow?.(product,1,product?.amount)}
                 disabled={stock === 0}
                 className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
               >

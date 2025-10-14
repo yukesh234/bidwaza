@@ -1,5 +1,5 @@
 import express from "express";
-import {addProduct, getSellerOrders, getSellerProducts, updateOrderStatus, updateStatus, updateStock} from '../Controller/seller.Controller.js'
+import {addProduct, getSellerOrders, getSellerProducts, sellerstats, updateOrderStatus, updateStatus, updateStock} from '../Controller/seller.Controller.js'
 import {authenticateToken} from '../middleware/auth.middleware.js'
 import { upload } from "../middleware/multer.middleware.js";
 const router = express.Router();
@@ -11,5 +11,6 @@ router.get('/getsellerOrders', authenticateToken, getSellerOrders);
 router.put('/updateOrderStatus', authenticateToken, updateOrderStatus);
 router.put("/updatestock", authenticateToken, updateStock );
 router.put("/updatestatus", authenticateToken, updateStatus)
+router.get("/getSellerstats", authenticateToken, sellerstats)
 export default router;
 

@@ -10,7 +10,7 @@ import { TrendingUp, MessageCircle, Settings,Package
  } from "lucide-react"
 import toast from 'react-hot-toast'
 import Order from './Order'
-import {updatestatus} from '../../services/sellerservices.js'
+import {updatestatus, getSellerStats} from '../../services/sellerservices.js'
 
 function SellerDashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -30,9 +30,25 @@ function SellerDashboard() {
     // TODO: Fetch seller stats from API
     // fetchSellerStats().then(data => setSellerStats(data))
     
+    fetchSellerStats();
+    
     // TODO: Fetch recent activity from API
     // fetchRecentActivity().then(data => setRecentActivity(data))
   }, [])
+
+  const fetchSellerStats = async() =>
+  {
+    try {
+      const response = await getSellerStats();
+      if(response.success)
+      {
+        console.log("fetched successfully");
+        setSellerStats(response.data)
+      }
+    } catch (error) {
+      console.log(error)
+    }
+  }
 
   // Handle listing deletion
   const handleDeleteListing = async (listingId) => {

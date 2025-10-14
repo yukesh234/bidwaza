@@ -4,12 +4,14 @@ import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Package, MoveLeft } from 'lucide-react'
 import {NavLink, useNavigate} from 'react-router-dom'
+import {usePayment} from '../../hooks/usePayment.js'
 
 function Cart() {
   const [cartItems, setCartItems] = useState([])
   const [summary, setSummary] = useState({})
   const [loading, setLoading] = useState(true)
   const navigate=useNavigate()
+  const {handleCartCheckout} = usePayment()
   
   useEffect(() => {
     fetchCart()
@@ -270,20 +272,19 @@ function Cart() {
                   </div>
                 </div>
 
-                <button className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-4"
-                onClick={()=>  console.log("cartItems and summary",cartItems, summary)}
+               <button 
+                  className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-4"
+                  onClick={() => handleCartCheckout(cartItems, summary)}
+                  disabled={cartItems.length === 0}
                 >
                   Proceed to Checkout
                   <ArrowRight className="w-5 h-5" />
                 </button>
-
                 <button
                 onClick={()=> navigate('/')}
                 className="w-full px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all">
                   Continue Shopping
                 </button>
-
-               
               </motion.div>
             </div>
           </div>

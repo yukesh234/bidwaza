@@ -51,12 +51,13 @@ export async function pay(req, res) {
 export async function verify(req, res) {
     let connection;
     try {
-        const { amt, refId, cartItems, productId, quantity, userId,transaction_uuid } = req.body;
+        const { amt, refId, cartItems, productId, quantity, userId, transaction_uuid } = req.body;
 
         if (!amt || !refId || !userId) {
             return res.status(400).json({ message: "Missing required fields" });
         }
         console.log("Verification request received:", req.body);
+        
         // Normalize input: convert single product to cart format
         let items = [];
         if (cartItems && Array.isArray(cartItems) && cartItems.length > 0) {
@@ -69,20 +70,16 @@ export async function verify(req, res) {
             });
         }
 
-        // Get transaction_uuid from request body
-        // const transaction_uuid = req.body.transaction_uuid;
-        
         if (!transaction_uuid) {
             return res.status(400).json({ message: "Transaction UUID is required for verification" });
         }
         
         // Verify with eSewa - GET request with query params
-      const response = await axios.get(
-    `https://rc.esewa.com.np/api/epay/transaction/status/?product_code=${process.env.ESEWA_PRODUCT_CODE}&total_amount=${amt}&transaction_uuid=${transaction_uuid}`)
-
+        const response = await axios.get(
+            `https://rc.esewa.com.np/api/epay/transaction/status/?product_code=${process.env.ESEWA_PRODUCT_CODE}&total_amount=${amt}&transaction_uuid=${transaction_uuid}`
+        );
         
         console.log("eSewa verification response:", response.data);
-        console.log(Date.now().toFixed(0));
 
         if (!response.data.status) {
             return res.status(400).json({ message: "Transaction verification failed" });
@@ -100,7 +97,7 @@ export async function verify(req, res) {
         });
 
         const productResult = await connection.execute(
-            `SELECT ITEM_ID, stock, title, amount, seller_id 
+            `SELECT ITEM_ID, STOCK, TITLE, AMOUNT, SELLER_ID 
              FROM products 
              WHERE ITEM_ID IN (${placeholders})`,
             bindParams,
@@ -177,14 +174,33 @@ export async function verify(req, res) {
 
             // Update stock
             await connection.execute(
-                `UPDATE products SET stock = stock - :qty WHERE ITEM_ID = :id`,
+                `UPDATE products SET STOCK = STOCK - :qty WHERE ITEM_ID = :id`,
                 { qty: item.quantity, id: item.productId },
                 { autoCommit: false }
             );
         }
 
-        // Commit all changes
+        // Commit all order changes
         await connection.commit();
+        console.log("Order committed successfully");
+
+        // ✅ DELETE CART ITEMS AFTER SUCCESSFUL ORDER
+        if (cartItems && Array.isArray(cartItems) && cartItems.length > 0) {
+            const cartItemIds = productIds.map((_, i) => `:cid${i}`).join(',');
+            const cartBindParams = { userId };
+            productIds.forEach((id, i) => {
+                cartBindParams[`cid${i}`] = id;
+            });
+
+            const deleteResult = await connection.execute(
+                `DELETE FROM cart_items 
+                 WHERE USER_ID = :userId AND ITEM_ID IN (${cartItemIds})`,
+                cartBindParams,
+                { autoCommit: true }
+            );
+            
+            console.log(`Cleared ${deleteResult.rowsAffected} items from cart for user ${userId}`);
+        }
 
         res.json({ 
             message: "Payment verified and order created successfully", 
@@ -196,12 +212,16 @@ export async function verify(req, res) {
         if (connection) {
             try {
                 await connection.rollback();
+                console.log("Transaction rolled back");
             } catch (rollbackError) {
                 console.error("Error during rollback:", rollbackError);
             }
         }
         console.error("Payment verification failed:", error);
-        res.status(500).json({ message: "Payment verification failed" });
+        res.status(500).json({ 
+            message: "Payment verification failed",
+            error: error.message 
+        });
     } finally {
         if (connection) {
             try {

@@ -965,8 +965,102 @@ export async function updateStatus(req, res) {
 }
 
 
+export async function sellerstats(req, res) {
+  const userId = req.user.ID;
+  let connection;
 
+  try {
+    connection = await getConnection();
 
+    // Query 1: Total Listings
+    const totalListings = await connection.execute(
+      `SELECT COUNT(*) AS totalListings 
+       FROM products 
+       WHERE seller_id = :userId`,
+      [userId]
+    );
+
+    // Query 2: Active Auctions
+    const activeAuctions = await connection.execute(
+      `SELECT COUNT(*) AS activeAuctions 
+       FROM products 
+       WHERE seller_id = :userId AND status = 'ACTIVE'`,
+      [userId]
+    );
+
+    // Query 3: Sold Items
+    const soldItems = await connection.execute(
+      `SELECT COUNT(DISTINCT oi.item_id) AS soldItems 
+       FROM order_items oi
+       JOIN orders o ON o.order_id = oi.order_id
+       WHERE oi.seller_id = :userId AND o.order_status = 'COMPLETED'`,
+      [userId]
+    );
+
+    // Query 4: Total Earnings
+    const totalEarnings = await connection.execute(
+      `SELECT NVL(SUM(oi.subtotal), 0) AS totalEarnings
+       FROM order_items oi
+       JOIN orders o ON o.order_id = oi.order_id
+       WHERE oi.seller_id = :userId AND o.order_status = 'COMPLETED'`,
+      [userId]
+    );
+
+    // Query 5: Average Sale Price
+    const avgSalePrice = await connection.execute(
+      `SELECT NVL(AVG(oi.price_at_purchase), 0) AS avgSalePrice
+       FROM order_items oi
+       JOIN orders o ON o.order_id = oi.order_id
+       WHERE oi.seller_id = :userId AND o.order_status = 'COMPLETED'`,
+      [userId]
+    );
+
+    // Query 6: Success Rate
+    const successRate = await connection.execute(
+      `SELECT 
+         CASE 
+           WHEN COUNT(*) = 0 THEN 0 
+           ELSE ROUND((SUM(CASE WHEN o.order_status = 'COMPLETED' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2)
+         END AS successRate
+       FROM order_items oi
+       JOIN orders o ON o.order_id = oi.order_id
+       WHERE oi.seller_id = :userId`,
+      [userId]
+    );
+
+    // Extract values - data is in array format [ [ value ] ]
+    const stats = {
+      totalListings: totalListings.rows[0]?.[0] || 0,
+      activeAuctions: activeAuctions.rows[0]?.[0] || 0,
+      soldItems: soldItems.rows[0]?.[0] || 0,
+      totalEarnings: totalEarnings.rows[0]?.[0] || 0,
+      avgSalePrice: avgSalePrice.rows[0]?.[0] || 0,
+      successRate: successRate.rows[0]?.[0] || 0,
+      rating: 0
+    };
+
+    res.json({
+      success: true,
+      message: "Seller statistics fetched successfully",
+      data: stats
+    });
+  } catch (error) {
+    console.error("Error fetching seller stats:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching seller statistics",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error("Error closing DB connection:", closeErr);
+      }
+    }
+  }
+}
 
 
 

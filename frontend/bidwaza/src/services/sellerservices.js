@@ -148,3 +148,25 @@ export const  updatestatus = async(newStatus, itemId) =>{
   }
 }
 
+export const getSellerStats = async () =>
+{
+  try {
+    const response = await api.get("/seller/getSellerstats");
+    if(response.data.success)
+    {
+      console.log(response.data);
+      return {
+        success:true,
+        message: response.data.message,
+        data: response.data.data
+      }
+    }
+    else{
+      return { success:false, message: response.data.message}
+    }
+  } catch (error) {
+    console.log(error);
+    return { success:false, message:error.message}
+  }
+}
+

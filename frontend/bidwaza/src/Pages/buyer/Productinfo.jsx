@@ -4,22 +4,20 @@ import { useParams } from 'react-router-dom'
 import {getProductById} from "../../services/userservices.js"
 import ProductInfoCard from '../../Components/ProductInfoCard'
 import { onAddToCart as handleCartclick} from '../../utils/product.js'
+import {usePayment} from '../../hooks/usePayment.js'
 function Productinfo() {
    
     const {itemId} = useParams();  
    
 
     const [product, setProduct] = useState([]);
-
+    const {handleBuyNow} = usePayment()
     
       const onAddToCart = async () =>{
         handleCartclick(product);
         console.log("Add to cart clicked");
       }
-        const onBuyClick = async () =>{
-      
-        console.log("Buy Now clicked");
-      }
+       
 
 useEffect(() => {
   const fetchProduct = async () => {
@@ -49,7 +47,7 @@ useEffect(() => {
         <ProductInfoCard
           product={product}
           onAddToCart={onAddToCart}
-          onBuyNow={onBuyClick}
+          onBuyNow={handleBuyNow}
         />
       ) : (
         <p>Loading...</p>
