@@ -1,13 +1,15 @@
-import React, { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ShoppingCart, ShoppingBag, ChevronLeft, ChevronRight, User, Package, Clock, Tag, MoveLeft } from 'lucide-react'
-import { useNavigate,NavLink } from 'react-router-dom'
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShoppingCart, ShoppingBag, ChevronLeft, ChevronRight, User, Package, Clock, Tag, MoveLeft, Gavel, UserPlus, Timer, TrendingUp } from 'lucide-react';
+import { useNavigate, NavLink } from 'react-router-dom';
 
-function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const navigate = useNavigate()
+function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegisterClick }) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [auctionStatus, setAuctionStatus] = useState('upcoming'); // upcoming, live, ended
+  const navigate = useNavigate();
 
-  if (!product) return null
+  if (!product) return null;
 
   const { 
     itemId, 
@@ -18,36 +20,360 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
     amount, 
     createdAt, 
     seller, 
-    images = [] 
-  } = product
+    images = [],
+    productType,
+    startingPrice,
+    currentPrice,
+    startTime,
+    endTime,
+    registrationEnd
+  } = product;
 
-  const sortedImages = [...images].sort((a, b) => (a?.displayOrder || 0) - (b?.displayOrder || 0))
+  const sortedImages = [...images].sort((a, b) => (a?.displayOrder || 0) - (b?.displayOrder || 0));
+
+  // Calculate time remaining
+  useEffect(() => {
+    if (productType === 'AUCTION' || productType === 'REGISTRATION') {
+      const calculateTime = () => {
+        const now = new Date().getTime();
+        
+        if (productType === 'AUCTION') {
+          const start = new Date(startTime).getTime();
+          const end = new Date(endTime).getTime();
+          
+          if (now < start) {
+            setAuctionStatus('upcoming');
+            const distance = start - now;
+            updateTimeLeft(distance);
+          } else if (now >= start && now < end) {
+            setAuctionStatus('live');
+            const distance = end - now;
+            updateTimeLeft(distance);
+          } else {
+            setAuctionStatus('ended');
+            setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+          }
+        } else if (productType === 'REGISTRATION') {
+          const regEnd = new Date(registrationEnd).getTime();
+          
+          if (now < regEnd) {
+            const distance = regEnd - now;
+            updateTimeLeft(distance);
+          } else {
+            setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+          }
+        }
+      };
+
+      const updateTimeLeft = (distance) => {
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+        setTimeLeft({ days, hours, minutes, seconds });
+      };
+
+      calculateTime();
+      const interval = setInterval(calculateTime, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [productType, startTime, endTime, registrationEnd]);
 
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % sortedImages.length)
-  }
+    setCurrentImageIndex((prev) => (prev + 1) % sortedImages.length);
+  };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + sortedImages.length) % sortedImages.length)
-  }
+    setCurrentImageIndex((prev) => (prev - 1 + sortedImages.length) % sortedImages.length);
+  };
 
   const handleSellerClick = () => {
-    if (seller?.sellerId) navigate(`/sellerpage/${seller.sellerId}`)
-  }
+    if (seller?.sellerId) navigate(`/sellerpage/${seller.sellerId}`);
+  };
 
   const formatDate = (date) => {
-    if (!date) return "Unknown date"
+    if (!date) return "Unknown date";
     return new Date(date).toLocaleDateString('en-US', { 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric' 
-    })
-  }
+    });
+  };
+
+  const renderProductTypeBadge = () => {
+    switch (productType) {
+      case 'AUCTION':
+        return (
+          <div className="flex gap-2">
+            <div className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-full shadow-lg flex items-center gap-2">
+              <Gavel className="w-4 h-4" />
+              <span className="font-semibold">Auction</span>
+            </div>
+            {auctionStatus === 'live' && (
+              <div className="px-4 py-2 bg-red-500 text-white rounded-full shadow-lg flex items-center gap-2 animate-pulse">
+                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                <span className="font-semibold">LIVE</span>
+              </div>
+            )}
+          </div>
+        );
+      case 'REGISTRATION':
+        const now = new Date().getTime();
+        const regEnd = new Date(registrationEnd).getTime();
+        const isOpen = now < regEnd;
+        return (
+          <div className={`px-4 py-2 bg-gradient-to-r ${isOpen ? 'from-green-500 to-emerald-600' : 'from-gray-500 to-gray-600'} text-white rounded-full shadow-lg flex items-center gap-2`}>
+            <UserPlus className="w-4 h-4" />
+            <span className="font-semibold">{isOpen ? 'Registration Open' : 'Registration Closed'}</span>
+          </div>
+        );
+      default:
+        return (
+          <div className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full shadow-lg">
+            <span className="font-semibold">Direct Sale</span>
+          </div>
+        );
+    }
+  };
+
+  const renderTimeDisplay = () => {
+    if (productType === 'AUCTION') {
+      if (auctionStatus === 'ended') {
+        return (
+          <div className="bg-red-500/20 border border-red-500/50 rounded-2xl p-6">
+            <h3 className="text-xl font-bold text-red-300 mb-2">Auction Ended</h3>
+            <p className="text-red-200">This auction has concluded.</p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/50 rounded-2xl p-6 backdrop-blur-md">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-orange-300" />
+            <h3 className="text-xl font-bold text-white">
+              {auctionStatus === 'upcoming' ? 'Auction Starts In' : 'Auction Ends In'}
+            </h3>
+          </div>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-white/10 rounded-xl p-4 text-center">
+              <div className="text-3xl font-bold text-white">{timeLeft.days}</div>
+              <div className="text-sm text-gray-300 mt-1">Days</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-4 text-center">
+              <div className="text-3xl font-bold text-white">{timeLeft.hours}</div>
+              <div className="text-sm text-gray-300 mt-1">Hours</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-4 text-center">
+              <div className="text-3xl font-bold text-white">{timeLeft.minutes}</div>
+              <div className="text-sm text-gray-300 mt-1">Minutes</div>
+            </div>
+            <div className="bg-white/10 rounded-xl p-4 text-center">
+              <div className="text-3xl font-bold text-white">{timeLeft.seconds}</div>
+              <div className="text-sm text-gray-300 mt-1">Seconds</div>
+            </div>
+          </div>
+        </div>
+      );
+    } else if (productType === 'REGISTRATION') {
+      const now = new Date().getTime();
+      const regEnd = new Date(registrationEnd).getTime();
+      const isOpen = now < regEnd;
+
+      if (isOpen) {
+        return (
+          <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/50 rounded-2xl p-6 backdrop-blur-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Timer className="w-5 h-5 text-green-300" />
+              <h3 className="text-xl font-bold text-white">Registration Closes In</h3>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-white/10 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-white">{timeLeft.days}</div>
+                <div className="text-sm text-gray-300 mt-1">Days</div>
+              </div>
+              <div className="bg-white/10 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-white">{timeLeft.hours}</div>
+                <div className="text-sm text-gray-300 mt-1">Hours</div>
+              </div>
+              <div className="bg-white/10 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-white">{timeLeft.minutes}</div>
+                <div className="text-sm text-gray-300 mt-1">Minutes</div>
+              </div>
+              <div className="bg-white/10 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-white">{timeLeft.seconds}</div>
+                <div className="text-sm text-gray-300 mt-1">Seconds</div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+    }
+    return null;
+  };
+
+  const renderPriceSection = () => {
+    if (productType === 'AUCTION') {
+      return (
+        <div className="space-y-4">
+          <div>
+            <p className="text-white/60 text-sm mb-2">Starting Price</p>
+            <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-400">
+              ₹{startingPrice?.toLocaleString() || "0"}
+            </div>
+          </div>
+          {currentPrice && currentPrice > startingPrice && (
+            <div className="bg-green-500/20 border border-green-500/50 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-5 h-5 text-green-300" />
+                <p className="text-green-300 font-semibold">Current Highest Bid</p>
+              </div>
+              <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400">
+                ₹{currentPrice?.toLocaleString()}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    } else if (productType === 'REGISTRATION') {
+      const now = new Date().getTime();
+      const regEnd = new Date(registrationEnd).getTime();
+      const isOpen = now < regEnd;
+
+      return (
+        <div>
+          <p className="text-white/60 text-sm mb-2">
+            {isOpen ? 'Registration Fee' : 'Price'}
+          </p>
+          <div className={`text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${
+            isOpen ? 'from-green-400 to-emerald-400' : 'from-cyan-400 to-blue-400'
+          }`}>
+            ₹{amount?.toLocaleString() || "0"}
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div>
+          <p className="text-white/60 text-sm mb-2">Price</p>
+          <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
+            ₹{amount?.toLocaleString() || "0"}
+          </div>
+        </div>
+      );
+    }
+  };
+
+  const renderActionButtons = () => {
+    if (productType === 'AUCTION') {
+      if (auctionStatus === 'ended') {
+        return (
+          <motion.button
+            disabled
+            className="w-full px-8 py-4 bg-gray-700 text-gray-400 font-bold text-lg rounded-xl cursor-not-allowed"
+          >
+            Auction Ended
+          </motion.button>
+        );
+      } else if (auctionStatus === 'upcoming') {
+        return (
+          <motion.button
+            disabled
+            className="w-full px-8 py-4 bg-orange-500/20 border border-orange-500/50 text-orange-300 font-bold text-lg rounded-xl cursor-not-allowed flex items-center justify-center gap-3"
+          >
+            <Clock className="w-6 h-6" />
+            Auction Not Started Yet
+          </motion.button>
+        );
+      } else {
+        return (
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onBidClick?.(product)}
+            className="w-full px-8 py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-orange-500/50 hover:shadow-orange-500/70"
+          >
+            <Gavel className="w-6 h-6" />
+            Place Your Bid
+          </motion.button>
+        );
+      }
+    } else if (productType === 'REGISTRATION') {
+      const now = new Date().getTime();
+      const regEnd = new Date(registrationEnd).getTime();
+      const isOpen = now < regEnd;
+
+      if (isOpen) {
+        return (
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onRegisterClick?.(product)}
+            className="w-full px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-green-500/50 hover:shadow-green-500/70"
+          >
+            <UserPlus className="w-6 h-6" />
+            Register Now
+          </motion.button>
+        );
+      } else {
+        return (
+          <div className="space-y-3">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onBuyNow?.(product, 1, product?.amount)}
+              disabled={stock === 0}
+              className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+              <ShoppingBag className="w-6 h-6" />
+              Buy Now
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onAddToCart?.(product)}
+              disabled={stock === 0}
+              className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 border border-white/20 hover:border-cyan-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ShoppingCart className="w-6 h-6" />
+              Add to Cart
+            </motion.button>
+          </div>
+        );
+      }
+    } else {
+      return (
+        <div className="space-y-3">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onBuyNow?.(product, 1, product?.amount)}
+            disabled={stock === 0}
+            className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          >
+            <ShoppingBag className="w-6 h-6" />
+            Buy Now
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onAddToCart?.(product)}
+            disabled={stock === 0}
+            className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 border border-white/20 hover:border-cyan-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ShoppingCart className="w-6 h-6" />
+            Add to Cart
+          </motion.button>
+        </div>
+      );
+    }
+  };
 
   return (
-    
     <div className="min-h-screen bg-gradient-to-br from-slate-800 via-teal-800 to-slate-900 py-12 px-4">
-          <motion.div 
+      <motion.div 
         className='absolute top-6 left-6'
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
@@ -61,6 +387,7 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
           Back to Home
         </NavLink>
       </motion.div>
+
       <div className="max-w-7xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -107,9 +434,8 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
                   </div>
                 )}
 
-                <div className="absolute top-4 left-4 px-4 py-2 bg-cyan-500/80 backdrop-blur-sm rounded-full text-white text-sm font-semibold flex items-center gap-2">
-                  <Tag className="w-4 h-4" />
-                  {category || "Uncategorized"}
+                <div className="absolute top-4 left-4">
+                  {renderProductTypeBadge()}
                 </div>
               </div>
             </div>
@@ -146,27 +472,28 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
           <div className="space-y-6">
             <div>
               <h1 className="text-4xl font-bold text-white mb-4">{title || "Untitled Product"}</h1>
-              <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
-                  ₹{amount?.toLocaleString() || "0"}
-                </span>
-              </div>
+              
+              {renderPriceSection()}
 
-              <div className="flex items-center gap-4 text-sm">
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                  stock > 0 
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                    : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                }`}>
-                  <Package className="w-4 h-4" />
-                  {stock > 0 ? `${stock} in stock` : 'Out of stock'}
+              {productType === 'DIRECT_SELL' && (
+                <div className="flex items-center gap-4 text-sm mt-4">
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                    stock > 0 
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                      : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                  }`}>
+                    <Package className="w-4 h-4" />
+                    {stock > 0 ? `${stock} in stock` : 'Out of stock'}
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <Clock className="w-4 h-4" />
+                    Listed on {formatDate(createdAt)}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-white/60">
-                  <Clock className="w-4 h-4" />
-                  Listed on {formatDate(createdAt)}
-                </div>
-              </div>
+              )}
             </div>
+
+            {renderTimeDisplay()}
 
             <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/20">
               <h3 className="text-xl font-bold text-white mb-3">Description</h3>
@@ -205,29 +532,7 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
               </div>
             )}
 
-            <div className="space-y-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onBuyNow?.(product,1,product?.amount)}
-                disabled={stock === 0}
-                className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-              >
-                <ShoppingBag className="w-6 h-6" />
-                Buy Now
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onAddToCart?.(product)}
-                disabled={stock === 0}
-                className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 border border-white/20 hover:border-cyan-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ShoppingCart className="w-6 h-6" />
-                Add to Cart
-              </motion.button>
-            </div>
+            {renderActionButtons()}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/5 rounded-xl p-4 border border-white/10">
@@ -243,7 +548,7 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow }) {
         </motion.div>
       </div>
     </div>
-  )
+  );
 }
 
-export default ProductInfoCard
+export default ProductInfoCard;

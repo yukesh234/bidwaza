@@ -95,49 +95,46 @@ export async function getallProducts(req, res) {
   let connection;
   let userId = null;
 
- 
+  // 🔹 Get user ID from token if present
   try {
     const token = req.cookies?.token;
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log(decoded);
       userId = decoded.id;
-      console.log(userId)
     }
-  } catch (err) {
-    console.log( "No valid token, showing public products.");
+  } catch {
+    // No valid token, continue
   }
 
   try {
-    // Pagination and filters
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const { category, product_type } = req.query;
-
+    const limit = parseInt(req.query.limit) || 8;
     const offset = (page - 1) * limit;
+
+    const { category, product_type } = req.query;
 
     connection = await getConnection();
 
-    // 🔹 Dynamic WHERE clause
-let whereClause = " WHERE p.STATUS = 'ACTIVE'";
-const binds = { offset, limit };
+    // 🔹 Build dynamic WHERE clause
+    let whereClause = " WHERE p.STATUS = 'ACTIVE'";
+    const binds = { offset, limit };
 
-if (category) {
-  whereClause += " AND p.CATEGORY = :category";
-  binds.category = category;
-}
+    if (category) {
+      whereClause += " AND p.CATEGORY = :category";
+      binds.category = category;
+    }
 
-if (product_type) {
-  whereClause += " AND p.PRODUCT_TYPE = :productType";
-  binds.productType = product_type;
-}
+    if (product_type) {
+      whereClause += " AND p.PRODUCT_TYPE = :productType";
+      binds.productType = product_type;
+    }
 
-if (userId) {
-  whereClause += " AND p.SELLER_ID != :userId";
-  binds.userId = userId;
-}
+    if (userId) {
+      whereClause += " AND p.SELLER_ID != :userId";
+      binds.userId = userId;
+    }
 
-    
+    // 🔹 Products query with OFFSET/FETCH - NOW INCLUDES AUCTION FIELDS
     const productsQuery = `
       SELECT 
         p.ITEM_ID,
@@ -149,6 +146,11 @@ if (userId) {
         p.PRODUCT_TYPE,
         p.AMOUNT,
         p.CREATED_AT,
+        p.STARTING_PRICE,
+        p.CURRENT_PRICE,
+        p.START_TIME,
+        p.END_TIME,
+        p.REGISTRATION_END,
         u.FIRST_NAME || ' ' || u.LAST_NAME AS SELLER_NAME,
         u.EMAIL AS SELLER_EMAIL,
         u.PROFILE_PICTURE_URL AS SELLER_PROFILE_PICTURE
@@ -159,19 +161,17 @@ if (userId) {
       OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
     `;
 
-    // 🔹 Count query (no offset/limit)
+    // 🔹 Count total products
     const countQuery = `
       SELECT COUNT(*) AS TOTAL_COUNT
       FROM products p
       ${whereClause}
     `;
-
-   
     const countBinds = { ...binds };
     delete countBinds.offset;
     delete countBinds.limit;
 
-    // Execute both queries in parallel
+    // 🔹 Execute queries in parallel
     const [productsResult, countResult] = await Promise.all([
       connection.execute(productsQuery, binds, { outFormat: oracledb.OUT_FORMAT_OBJECT }),
       connection.execute(countQuery, countBinds, { outFormat: oracledb.OUT_FORMAT_OBJECT }),
@@ -179,19 +179,19 @@ if (userId) {
 
     const totalCount = countResult.rows[0]?.TOTAL_COUNT || 0;
 
-    // 🔹 Fetch images for each product
+    // 🔹 Fetch product images
     const productsWithImages = await Promise.all(
       productsResult.rows.map(async (product) => {
         const imagesResult = await connection.execute(
-          `SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER 
-           FROM product_images 
-           WHERE ITEM_ID = :itemId 
+          `SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER
+           FROM product_images
+           WHERE ITEM_ID = :itemId
            ORDER BY DISPLAY_ORDER`,
           { itemId: product.ITEM_ID },
           { outFormat: oracledb.OUT_FORMAT_OBJECT }
         );
 
-        return {
+        const productData = {
           itemId: product.ITEM_ID,
           title: product.TITLE,
           description: product.DESCRIPTION,
@@ -208,19 +208,63 @@ if (userId) {
           },
           images: imagesResult.rows.map((img) => ({
             url: img.IMAGE_URL,
-            isPrimary: img.IS_PRIMARY === "Y",
+            isPrimary: img.IS_PRIMARY === 'Y',
             displayOrder: img.DISPLAY_ORDER,
           })),
         };
+
+        // 🔹 Add auction details for AUCTION and REGISTRATION types
+        if (product.PRODUCT_TYPE === 'AUCTION' || product.PRODUCT_TYPE === 'REGISTRATION') {
+          productData.auctionDetails = {
+            startingPrice: product.STARTING_PRICE,
+            currentPrice: product.CURRENT_PRICE,
+            startTime: product.START_TIME,
+            endTime: product.END_TIME,
+          };
+
+          // Only include registration_end for REGISTRATION type
+          if (product.PRODUCT_TYPE === 'REGISTRATION' && product.REGISTRATION_END) {
+            productData.auctionDetails.registrationEnd = product.REGISTRATION_END;
+          }
+
+          // 🔹 Calculate auction status
+          const now = new Date();
+          const startTime = new Date(product.START_TIME);
+          const endTime = new Date(product.END_TIME);
+          const regEnd = product.REGISTRATION_END ? new Date(product.REGISTRATION_END) : null;
+
+          if (product.PRODUCT_TYPE === 'REGISTRATION' && regEnd) {
+            if (now < regEnd) {
+              productData.auctionDetails.status = 'REGISTRATION_OPEN';
+            } else if (now < startTime) {
+              productData.auctionDetails.status = 'REGISTRATION_CLOSED';
+            } else if (now >= startTime && now < endTime) {
+              productData.auctionDetails.status = 'LIVE';
+            } else {
+              productData.auctionDetails.status = 'ENDED';
+            }
+          } else {
+            // Standard AUCTION type
+            if (now < startTime) {
+              productData.auctionDetails.status = 'UPCOMING';
+            } else if (now >= startTime && now < endTime) {
+              productData.auctionDetails.status = 'LIVE';
+            } else {
+              productData.auctionDetails.status = 'ENDED';
+            }
+          }
+        }
+
+        return productData;
       })
     );
 
-    // 🔹 Pagination details
     const totalPages = Math.ceil(totalCount / limit);
 
+    // 🔹 Send response
     res.status(200).json({
       success: true,
-      message: "Products fetched successfully",
+      message: 'Products fetched successfully',
       data: {
         products: productsWithImages,
         pagination: {
@@ -233,11 +277,12 @@ if (userId) {
         },
       },
     });
+
   } catch (error) {
-    console.error("Get all products error:", error);
+    console.error('Get all products error:', error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch products",
+      message: 'Failed to fetch products',
       error: error.message,
     });
   } finally {
@@ -245,14 +290,14 @@ if (userId) {
       try {
         await connection.close();
       } catch (closeError) {
-        console.error("Connection close error:", closeError);
+        console.error('Connection close error:', closeError);
       }
     }
   }
 }
 
 export async function getProductById(req, res) {
-  const { ItemId } = req.params;  // or const ItemId = req.params.ItemId;
+  const { ItemId } = req.params;
   let connection;
   try {
     if (!ItemId) {
@@ -269,12 +314,17 @@ export async function getProductById(req, res) {
          p.ITEM_ID,
          p.SELLER_ID,
          p.TITLE,
-         TO_CHAR(p.DESCRIPTION) AS DESCRIPTION,  -- FIXED: Added TO_CHAR for CLOB
+         TO_CHAR(p.DESCRIPTION) AS DESCRIPTION,
          p.CATEGORY,
          p.STOCK,
          p.PRODUCT_TYPE,
          p.AMOUNT,
          p.CREATED_AT,
+         p.STARTING_PRICE,
+         p.CURRENT_PRICE,
+         p.START_TIME,
+         p.END_TIME,
+         p.REGISTRATION_END,
          u.FIRST_NAME || ' ' || u.LAST_NAME AS SELLER_NAME,
          u.EMAIL AS SELLER_EMAIL,
          u.PROFILE_PICTURE_URL AS SELLER_PROFILE_PICTURE
@@ -311,26 +361,107 @@ export async function getProductById(req, res) {
       displayOrder: img.DISPLAY_ORDER,
     }));
 
+    const productData = {
+      itemId: product.ITEM_ID,
+      title: product.TITLE,
+      description: product.DESCRIPTION,
+      category: product.CATEGORY,
+      stock: product.STOCK,
+      productType: product.PRODUCT_TYPE,
+      amount: product.AMOUNT,
+      createdAt: product.CREATED_AT,
+      seller: {
+        sellerId: product.SELLER_ID,
+        name: product.SELLER_NAME,
+        email: product.SELLER_EMAIL,
+        profilePicture: product.SELLER_PROFILE_PICTURE
+      },
+      images
+    };
+
+    // 🔹 Add auction details for AUCTION and REGISTRATION types
+    if (product.PRODUCT_TYPE === 'AUCTION' || product.PRODUCT_TYPE === 'REGISTRATION') {
+      productData.auctionDetails = {
+        startingPrice: product.STARTING_PRICE,
+        currentPrice: product.CURRENT_PRICE,
+        startTime: product.START_TIME,
+        endTime: product.END_TIME,
+      };
+
+      // Only include registration_end for REGISTRATION type
+      if (product.PRODUCT_TYPE === 'REGISTRATION' && product.REGISTRATION_END) {
+        productData.auctionDetails.registrationEnd = product.REGISTRATION_END;
+      }
+
+      // 🔹 Calculate auction status
+      const now = new Date();
+      const startTime = new Date(product.START_TIME);
+      const endTime = new Date(product.END_TIME);
+      const regEnd = product.REGISTRATION_END ? new Date(product.REGISTRATION_END) : null;
+
+      if (product.PRODUCT_TYPE === 'REGISTRATION' && regEnd) {
+        if (now < regEnd) {
+          productData.auctionDetails.status = 'REGISTRATION_OPEN';
+        } else if (now < startTime) {
+          productData.auctionDetails.status = 'REGISTRATION_CLOSED';
+        } else if (now >= startTime && now < endTime) {
+          productData.auctionDetails.status = 'LIVE';
+        } else {
+          productData.auctionDetails.status = 'ENDED';
+        }
+      } else {
+        // Standard AUCTION type
+        if (now < startTime) {
+          productData.auctionDetails.status = 'UPCOMING';
+        } else if (now >= startTime && now < endTime) {
+          productData.auctionDetails.status = 'LIVE';
+        } else {
+          productData.auctionDetails.status = 'ENDED';
+        }
+      }
+
+      // 🔹 Fetch bid count for auctions
+      const bidCountResult = await connection.execute(
+        `SELECT COUNT(*) AS BID_COUNT
+         FROM bids
+         WHERE ITEM_ID = :itemId`,
+        { itemId: ItemId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+
+      productData.auctionDetails.bidCount = bidCountResult.rows[0]?.BID_COUNT || 0;
+
+      // 🔹 Fetch highest bid info
+      if (productData.auctionDetails.bidCount > 0) {
+        const highestBidResult = await connection.execute(
+          `SELECT 
+             b.BID_AMOUNT,
+             b.BID_TIME,
+             u.FIRST_NAME || ' ' || u.LAST_NAME AS BIDDER_NAME
+           FROM bids b
+           LEFT JOIN users u ON b.BIDDER_ID = u.ID
+           WHERE b.ITEM_ID = :itemId
+           ORDER BY b.BID_AMOUNT DESC
+           FETCH FIRST 1 ROW ONLY`,
+          { itemId: ItemId },
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        if (highestBidResult.rows.length > 0) {
+          const highestBid = highestBidResult.rows[0];
+          productData.auctionDetails.highestBid = {
+            amount: highestBid.BID_AMOUNT,
+            bidderName: highestBid.BIDDER_NAME,
+            bidTime: highestBid.BID_TIME
+          };
+        }
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: "Product fetched successfully",
-      data: {
-        itemId: product.ITEM_ID,
-        title: product.TITLE,
-        description: product.DESCRIPTION,
-        category: product.CATEGORY,
-        stock: product.STOCK,
-        productType: product.PRODUCT_TYPE,
-        amount: product.AMOUNT,
-        createdAt: product.CREATED_AT,
-        seller: {
-          sellerId: product.SELLER_ID,
-          name: product.SELLER_NAME,
-          email: product.SELLER_EMAIL,
-          profilePicture: product.SELLER_PROFILE_PICTURE
-        },
-        images
-      }
+      data: productData
     });
 
   } catch (error) {

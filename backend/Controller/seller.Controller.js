@@ -5,10 +5,10 @@ import oracledb from 'oracledb';
 async function addProduct(req, res) {
   let connection;
   try {
-    const { title, description, category, stock, product_type, amount } = req.body;
+    const { title, description, category, stock, product_type, amount=0 } = req.body;
 
     // Validate required fields
-    if ([title, description, category, product_type].some(f => !f?.trim()) || stock == null || amount == null) {
+    if ([title, description, category, product_type].some(f => !f?.trim()) || stock == null ) {
       return res.status(400).json({
         message: "All fields are required",
         success: false
@@ -32,7 +32,7 @@ async function addProduct(req, res) {
       });
     }
 
-    if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+    if (isNaN(parseFloat(amount)) || parseFloat(amount) <0) {
       return res.status(400).json({
         message: "Amount must be a positive number",
         success: false
@@ -184,7 +184,7 @@ async function addProduct(req, res) {
          STARTING_PRICE, CURRENT_PRICE, START_TIME, END_TIME, REGISTRATION_END
        ) VALUES (
          product_seq.NEXTVAL, :sellerId, :title, :description, :category, :stock, 
-         :type, :amount, 'PENDING', SYSTIMESTAMP, SYSTIMESTAMP,
+         :type, :amount, 'ACTIVE', SYSTIMESTAMP, SYSTIMESTAMP,
          :startingPrice, :startingPrice, :startTime, :endTime, :registrationEnd
        ) RETURNING ITEM_ID INTO :itemId`;
 
@@ -610,156 +610,101 @@ export async function getSellerOrders(req, res) {
 }
 
 // Get single order details for seller
-export async function getSellerOrderById(req, res) {
+export async function getProductById(req, res) {
+  const { ItemId } = req.params;  // or const ItemId = req.params.ItemId;
   let connection;
   try {
-    const sellerId = req.user.ID;
-    const { orderId } = req.params;
-
-    if (!orderId) {
-      return res.status(400).json({
+    if (!ItemId) {
+      return res.status(400).json({ 
         success: false,
-        message: "Order ID is required"
+        message: "Item id is required" 
       });
     }
 
     connection = await getConnection();
-
-    // Check if seller has items in this order
-    const checkResult = await connection.execute(
-      `SELECT COUNT(*) as ITEM_COUNT
-       FROM order_items
-       WHERE ORDER_ID = :orderId AND SELLER_ID = :sellerId`,
-      { orderId, sellerId },
+    
+    const result = await connection.execute(
+      `SELECT 
+         p.ITEM_ID,
+         p.SELLER_ID,
+         p.TITLE,
+         TO_CHAR(p.DESCRIPTION) AS DESCRIPTION,  -- FIXED: Added TO_CHAR for CLOB
+         p.CATEGORY,
+         p.STOCK,
+         p.PRODUCT_TYPE,
+         p.AMOUNT,
+         p.CREATED_AT,
+         u.FIRST_NAME || ' ' || u.LAST_NAME AS SELLER_NAME,
+         u.EMAIL AS SELLER_EMAIL,
+         u.PROFILE_PICTURE_URL AS SELLER_PROFILE_PICTURE
+       FROM products p
+       LEFT JOIN users u ON p.SELLER_ID = u.ID
+       WHERE p.ITEM_ID = :itemId
+         AND p.STATUS = 'ACTIVE'`,
+      { itemId: ItemId },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
 
-    if (checkResult.rows[0].ITEM_COUNT === 0) {
-      return res.status(404).json({
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
         success: false,
-        message: "Order not found or doesn't contain your products"
+        message: "Product not found" 
       });
     }
 
-    // Get order details
-    const orderResult = await connection.execute(
-      `SELECT 
-        o.ORDER_ID,
-        o.USER_ID,
-        o.ORDER_NUMBER,
-        o.TOTAL_AMOUNT,
-        o.ORDER_STATUS,
-        o.PAYMENT_STATUS,
-        o.ESEWA_TXN_ID,
-        o.ORDER_DATE,
-        o.UPDATED_AT,
-        u.FIRST_NAME || ' ' || u.LAST_NAME as BUYER_NAME,
-        u.EMAIL as BUYER_EMAIL,
-        u.PROFILE_PICTURE_URL as BUYER_PROFILE_PICTURE
-      FROM orders o
-      INNER JOIN users u ON o.USER_ID = u.ID
-      WHERE o.ORDER_ID = :orderId`,
-      { orderId },
+    const product = result.rows[0];
+
+    // Fetch product images
+    const imagesResult = await connection.execute(
+      `SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER 
+       FROM product_images 
+       WHERE ITEM_ID = :itemId 
+       ORDER BY DISPLAY_ORDER`,
+      { itemId: ItemId },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
-
-    if (orderResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found"
-      });
-    }
-
-    const order = orderResult.rows[0];
-
-    // Get only seller's items from this order
-    const itemsResult = await connection.execute(
-      `SELECT 
-        oi.ORDER_ITEM_ID,
-        oi.ITEM_ID,
-        oi.PRODUCT_TITLE,
-        oi.PRICE_AT_PURCHASE,
-        oi.QUANTITY,
-        oi.SUBTOTAL,
-        oi.CREATED_AT,
-        p.STATUS as PRODUCT_STATUS,
-        p.STOCK as CURRENT_STOCK
-      FROM order_items oi
-      LEFT JOIN products p ON oi.ITEM_ID = p.ITEM_ID
-      WHERE oi.ORDER_ID = :orderId AND oi.SELLER_ID = :sellerId
-      ORDER BY oi.CREATED_AT`,
-      { orderId, sellerId },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
-    );
-
-    // Get images for each item
-    const itemsWithImages = await Promise.all(
-      itemsResult.rows.map(async (item) => {
-        const imagesResult = await connection.execute(
-          `SELECT IMAGE_URL, IS_PRIMARY
-           FROM product_images
-           WHERE ITEM_ID = :itemId
-           ORDER BY DISPLAY_ORDER`,
-          { itemId: item.ITEM_ID },
-          { outFormat: oracledb.OUT_FORMAT_OBJECT }
-        );
-
-        const primaryImage = imagesResult.rows.find(img => img.IS_PRIMARY === 'Y')?.IMAGE_URL ||
-                           imagesResult.rows[0]?.IMAGE_URL || null;
-
-        return {
-          orderItemId: item.ORDER_ITEM_ID,
-          itemId: item.ITEM_ID,
-          productTitle: item.PRODUCT_TITLE,
-          priceAtPurchase: item.PRICE_AT_PURCHASE,
-          quantity: item.QUANTITY,
-          subtotal: item.SUBTOTAL,
-          primaryImage: primaryImage,
-          productStatus: item.PRODUCT_STATUS,
-          currentStock: item.CURRENT_STOCK
-        };
-      })
-    );
-
-    const sellerRevenue = itemsWithImages.reduce((sum, item) => sum + item.subtotal, 0);
+    
+    const images = imagesResult.rows.map((img) => ({
+      url: img.IMAGE_URL,
+      isPrimary: img.IS_PRIMARY === "Y",
+      displayOrder: img.DISPLAY_ORDER,
+    }));
 
     res.status(200).json({
       success: true,
-      message: "Order details fetched successfully",
+      message: "Product fetched successfully",
       data: {
-        orderId: order.ORDER_ID,
-        orderNumber: order.ORDER_NUMBER,
-        totalOrderAmount: order.TOTAL_AMOUNT,
-        sellerRevenue: sellerRevenue,
-        orderStatus: order.ORDER_STATUS,
-        paymentStatus: order.PAYMENT_STATUS,
-        esewaTxnId: order.ESEWA_TXN_ID,
-        orderDate: order.ORDER_DATE,
-        updatedAt: order.UPDATED_AT,
-        buyer: {
-          buyerId: order.USER_ID,
-          name: order.BUYER_NAME,
-          email: order.BUYER_EMAIL,
-          profilePicture: order.BUYER_PROFILE_PICTURE
+        itemId: product.ITEM_ID,
+        title: product.TITLE,
+        description: product.DESCRIPTION,
+        category: product.CATEGORY,
+        stock: product.STOCK,
+        productType: product.PRODUCT_TYPE,
+        amount: product.AMOUNT,
+        createdAt: product.CREATED_AT,
+        seller: {
+          sellerId: product.SELLER_ID,
+          name: product.SELLER_NAME,
+          email: product.SELLER_EMAIL,
+          profilePicture: product.SELLER_PROFILE_PICTURE
         },
-        items: itemsWithImages,
-        itemCount: itemsWithImages.length
+        images
       }
     });
 
   } catch (error) {
-    console.error('Get seller order by ID error:', error);
+    console.error("Get product by ID error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch order details",
-      error: error.message
+      message: "Failed to fetch product",
+      error: error.message,
     });
   } finally {
     if (connection) {
       try {
         await connection.close();
-      } catch (err) {
-        console.error('Connection close error:', err);
+      } catch (closeError) {
+        console.error("Connection close error:", closeError);
       }
     }
   }

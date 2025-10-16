@@ -34,6 +34,7 @@ export const addProduct= async(formData, images) =>{
             return {success:true, message:response.data.message}
           }
           else{
+            console.log("Seller servicce add products", response.data.message)
             return {success:false, message:response.data.message}
           }
     } catch (error) {
