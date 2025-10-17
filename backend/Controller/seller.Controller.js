@@ -5,6 +5,7 @@ import oracledb from 'oracledb';
 async function addProduct(req, res) {
   let connection;
   try {
+    console.log(req.body, req.user)
     const { title, description, category, stock, product_type, amount=0 } = req.body;
 
     // Validate required fields

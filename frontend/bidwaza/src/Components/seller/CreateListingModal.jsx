@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Zap, Image as ImageIcon, Trash2 } from "lucide-react"
 import {addProduct} from '../../services/sellerservices.js'
@@ -22,6 +22,16 @@ function CreateListingModal({ isOpen, onClose }) {
   const [imagePreviews, setImagePreviews] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Auto-set stock to 1 for auction types
+  useEffect(() => {
+    if (formData.product_type === 'AUCTION' || formData.product_type === 'REGISTRATION') {
+      setFormData(prev => ({
+        ...prev,
+        stock: '1'
+      }))
+    }
+  }, [formData.product_type])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -73,10 +83,31 @@ function CreateListingModal({ isOpen, onClose }) {
         return
       }
 
-      if (!formData.stock || !formData.amount) {
-        setError('Stock and amount are required')
+      if (!formData.stock) {
+        setError('Stock is required')
         setLoading(false)
         return
+      }
+
+      // Validate stock is positive
+      if (parseInt(formData.stock) <= 0) {
+        setError('Stock must be greater than 0')
+        setLoading(false)
+        return
+      }
+
+      // Validate direct sell amount
+      if (formData.product_type === 'DIRECT_SELL') {
+        if (!formData.amount) {
+          setError('Price is required for direct sell products')
+          setLoading(false)
+          return
+        }
+        if (parseFloat(formData.amount) <= 0) {
+          setError('Price must be greater than 0')
+          setLoading(false)
+          return
+        }
       }
 
       // Validate auction fields
@@ -86,11 +117,51 @@ function CreateListingModal({ isOpen, onClose }) {
           setLoading(false)
           return
         }
-        
-        if (formData.product_type === 'REGISTRATION' && !formData.registration_end) {
-          setError('Registration end time is required for registration-type auctions')
+
+        // Validate starting price
+        if (parseFloat(formData.starting_price) <= 0) {
+          setError('Starting bid price must be greater than 0')
           setLoading(false)
           return
+        }
+
+        // Validate dates
+        const startTime = new Date(formData.start_time)
+        const endTime = new Date(formData.end_time)
+        const now = new Date()
+
+        if (startTime < now) {
+          setError('Auction start time must be in the future')
+          setLoading(false)
+          return
+        }
+
+        if (endTime <= startTime) {
+          setError('Auction end time must be after start time')
+          setLoading(false)
+          return
+        }
+        
+        if (formData.product_type === 'REGISTRATION') {
+          if (!formData.registration_end) {
+            setError('Registration end time is required for registration-type auctions')
+            setLoading(false)
+            return
+          }
+
+          const registrationEnd = new Date(formData.registration_end)
+
+          if (registrationEnd < now) {
+            setError('Registration end time must be in the future')
+            setLoading(false)
+            return
+          }
+
+          if (registrationEnd >= startTime) {
+            setError('Registration must end before auction starts')
+            setLoading(false)
+            return
+          }
         }
       }
 
@@ -101,13 +172,21 @@ function CreateListingModal({ isOpen, onClose }) {
         return
       }
 
-      const response = await addProduct(formData, images)
+      // Prepare data for submission
+      const submitData = { ...formData }
+      
+      // Set amount to 0 for auction types (no buy now option)
+      if (formData.product_type === 'AUCTION' || formData.product_type === 'REGISTRATION') {
+        submitData.amount = 0
+      }
+
+      const response = await addProduct(submitData, images)
       if (response.success) {
         toast.success("Product listed successfully")
         resetForm()
         // Close modal - this will trigger refresh in parent
         onClose()
-           window.location.reload();
+        window.location.reload();
       }
 
     } catch (err) {
@@ -254,16 +333,19 @@ function CreateListingModal({ isOpen, onClose }) {
                       name="stock"
                       value={formData.stock}
                       onChange={handleInputChange}
-                      disabled={loading}
-                      min="0"
+                      disabled={loading || formData.product_type !== 'DIRECT_SELL'}
+                      min="1"
                       placeholder="Available quantity" 
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/50 disabled:opacity-50" 
                     />
+                    {(formData.product_type === 'AUCTION' || formData.product_type === 'REGISTRATION') && (
+                      <p className="text-white/40 text-xs mt-1">Stock is set to 1 for auctions</p>
+                    )}
                   </div>
                 </div>
 
-                {/* Price/Amount */}
-                {formData.product_type === 'DIRECT_SELL' ? (
+                {/* Price - Only for Direct Sell */}
+                {formData.product_type === 'DIRECT_SELL' && (
                   <div>
                     <label className="block text-white font-semibold mb-2">Price *</label>
                     <input 
@@ -273,26 +355,10 @@ function CreateListingModal({ isOpen, onClose }) {
                       onChange={handleInputChange}
                       disabled={loading}
                       step="0.01"
-                      min="0"
+                      min="0.01"
                       placeholder="0.00" 
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/50 disabled:opacity-50" 
                     />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Buy Now Price (Optional)</label>
-                    <input 
-                      type="number"
-                      name="amount"
-                      value={formData.amount}
-                      onChange={handleInputChange}
-                      disabled={loading}
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00" 
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/50 disabled:opacity-50" 
-                    />
-                    <p className="text-white/40 text-xs mt-1">Leave empty if auction only</p>
                   </div>
                 )}
 
@@ -308,7 +374,7 @@ function CreateListingModal({ isOpen, onClose }) {
                         onChange={handleInputChange}
                         disabled={loading}
                         step="0.01"
-                        min="0"
+                        min="0.01"
                         placeholder="0.00" 
                         className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/50 disabled:opacity-50" 
                       />
@@ -351,7 +417,7 @@ function CreateListingModal({ isOpen, onClose }) {
                           disabled={loading}
                           className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-cyan-400/50 disabled:opacity-50" 
                         />
-                        <p className="text-white/40 text-xs mt-1">Users must register before this time to participate</p>
+                        <p className="text-white/40 text-xs mt-1">Users must register before this time to participate (must be before auction starts)</p>
                       </div>
                     )}
                   </>

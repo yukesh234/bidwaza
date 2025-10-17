@@ -46,13 +46,10 @@ app.get("/", (req,res)=> res.send({message:"Hello"}));
 io.on('connection', (socket) => {
   console.log(` User connected: ${socket.id}`);
 
-  // Example: receive and send message
-  socket.on('sendMessage', (data) => {
-    console.log(' Message received:', data);
-    // Emit message to specific user (if needed)
-    io.emit('receiveMessage', data);
-  });
-
+  socket.on("join-bid",(room_id)=>{
+    socket.join(room_id);
+  })
+ 
   socket.on('disconnect', () => {
     console.log(` User disconnected: ${socket.id}`);
   });
@@ -61,5 +58,5 @@ io.on('connection', (socket) => {
 // Start the HTTP server (not app.listen)
 const PORT = 3000;
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Server and Socket.IO running on port ${PORT}`);
+  console.log(` Server and Socket.IO running on port ${PORT}`);
 });

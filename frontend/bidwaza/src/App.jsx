@@ -17,6 +17,7 @@ import Productinfo from './Pages/buyer/Productinfo'
 import PaymentSuccess from './Pages/PaymentSuccess.jsx'
 import PaymentFailure from './Pages/PaymentFailure.jsx'
 import Orders from './Pages/buyer/Orders.jsx'
+import WalletPage from './Pages/buyer/Wallet.jsx'
 function App() {
   return (
     <>
@@ -24,6 +25,8 @@ function App() {
         {/* Buyer Routes with Layout */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
+           <Route path="/wallet" element ={<WalletPage/>} />
+
         </Route>
 
         {/* User Auth Routes */}
@@ -32,6 +35,7 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/uploadpfp" element={<Uploadpfp />} />
+         
         </Route>
 
         {/* Buyer Product Routes */}

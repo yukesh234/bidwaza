@@ -261,6 +261,8 @@ export async function getallProducts(req, res) {
 
     const totalPages = Math.ceil(totalCount / limit);
 
+   
+
     // 🔹 Send response
     res.status(200).json({
       success: true,
