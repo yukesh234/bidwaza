@@ -10,6 +10,7 @@ import user from './Routes/user.js';
 import seller from './Routes/seller.js';
 import cart from './Routes/cart.js';
 import esewa from './Routes/esewa.js';
+import wallet from './Routes/wallet.js';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use("/user", user);
 app.use("/seller", seller);
 app.use("/cart", cart);
 app.use("/esewa", esewa);
+app.use("/wallet",wallet);
 app.get("/", (req,res)=> res.send({message:"Hello"}));
 
 

@@ -22,7 +22,7 @@ async function register(req, res) {
   try {
     connection = await getConnection();
 
-    // Check if user exists - using correct column name
+    // Check if user exists
     const checkQuery = `SELECT * FROM users WHERE email = :email`;
     const result = await connection.execute(checkQuery, { email }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
         
@@ -33,12 +33,12 @@ async function register(req, res) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Method 1: Using RETURNING clause (Oracle specific)
-   const insertQuery = `
-  INSERT INTO users (first_name, last_name, email, password, interests)
-  VALUES (:first_name, :last_name, :email, :password, :interests)
-  RETURNING id INTO :user_id
-`;
+    // Insert user and get ID
+    const insertQuery = `
+      INSERT INTO users (first_name, last_name, email, password, interests)
+      VALUES (:first_name, :last_name, :email, :password, :interests)
+      RETURNING id INTO :user_id
+    `;
     
     const insertResult = await connection.execute(
       insertQuery,
@@ -53,13 +53,20 @@ async function register(req, res) {
       { autoCommit: true }
     );
 
-    // Get the returned user ID
     const userId = insertResult.outBinds.user_id[0];
 
-    // Generate JWT with user ID included
+    // Create wallet for the new user - use same connection
+    await connection.execute(
+      `INSERT INTO WALLETS (USER_ID, BALANCE)
+       VALUES (:userId, 0)`,
+      { userId },
+      { autoCommit: true }
+    );
+
+    // Generate JWT
     const token = jwt.sign(
       { 
-        userId,  // Include user ID in token
+        userId,
         email 
       },
       process.env.JWT_SECRET,
@@ -71,13 +78,13 @@ async function register(req, res) {
     return res.status(201).send({
       message: 'User registered successfully',
       user: {
-        userId,        // 🎉 Here's your user ID!
+        userId,
         firstname,
         lastName,
         email,
         interests
       },
-      "success": true
+      success: true
     });
 
   } catch (error) {

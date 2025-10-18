@@ -18,6 +18,9 @@ import PaymentSuccess from './Pages/PaymentSuccess.jsx'
 import PaymentFailure from './Pages/PaymentFailure.jsx'
 import Orders from './Pages/buyer/Orders.jsx'
 import WalletPage from './Pages/buyer/Wallet.jsx'
+import WalletSuccess from './Pages/buyer/WalletSuccess.jsx'
+import { WalletFailure } from './Pages/buyer/WalletFailure.jsx'
+
 function App() {
   return (
     <>
@@ -26,7 +29,6 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
            <Route path="/wallet" element ={<WalletPage/>} />
-
         </Route>
 
         {/* User Auth Routes */}
@@ -45,6 +47,8 @@ function App() {
         <Route path="/esewa/failure" element={<PaymentFailure />} />
           <Route path="/productinfo/:itemId" element={<Productinfo />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/wallet/success" element={<WalletSuccess />} />
+          <Route path="/wallet/failure" element={<WalletFailure />} />
         {/* Seller Dashboard Routes - Nested routing */}
         <Route path="/seller/*" element={<SellerDashboard />} />
       </Routes>
