@@ -18,6 +18,7 @@ function Login() {
       console.log("Login successful");
           toast.success("Login Successful");  
          Navigate('/');
+         window.location.reload();
         }
         else 
         {
@@ -217,7 +218,7 @@ function Login() {
                 </label>
               </div>
               <div className='text-sm'>
-                <Link to='#' className='font-medium text-cyan-300 hover:text-cyan-200 transition-colors duration-300'>
+                <Link to='/forget-Password' className='font-medium text-cyan-300 hover:text-cyan-200 transition-colors duration-300'>
                   Forgot password?
                 </Link>
               </div>

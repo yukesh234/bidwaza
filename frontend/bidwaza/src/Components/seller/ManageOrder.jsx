@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -11,10 +10,12 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Star,
+  MessageSquare,
+  ThumbsUp,
+  Award
 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { updateOrderStatus } from '../../services/sellerservices';
 
 const ManageOrderCard = ({ order, onStatusUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -72,7 +73,7 @@ const ManageOrderCard = ({ order, onStatusUpdate }) => {
 
   const handleStatusChange = (newStatus) => {
     if (orderStatus === newStatus) {
-      toast.error('Order is already in this status');
+      console.log('Order is already in this status');
       return;
     }
     setSelectedStatus(newStatus);
@@ -84,21 +85,11 @@ const ManageOrderCard = ({ order, onStatusUpdate }) => {
     setShowConfirmModal(false);
 
     try {
-      const response = await updateOrderStatus(orderId, selectedStatus);
-
-      if (response.success) {
-        toast.success(`Order status updated to ${selectedStatus}`);
-        
-        // Callback to parent to refresh orders
-        if (onStatusUpdate) {
-          onStatusUpdate(orderId, selectedStatus);
-        }
-      } else {
-        toast.error(response.message || 'Failed to update order status');
+      if (onStatusUpdate) {
+        await onStatusUpdate(orderId, selectedStatus);
       }
     } catch (error) {
       console.error('Error updating order status:', error);
-      toast.error('Error updating order status');
     } finally {
       setIsUpdating(false);
       setSelectedStatus(null);
@@ -106,6 +97,32 @@ const ManageOrderCard = ({ order, onStatusUpdate }) => {
   };
 
   const canUpdateStatus = orderStatus === 'PENDING';
+
+  // Calculate review statistics
+  const reviewStats = {
+    total: items.filter(item => item.review).length,
+    averageRating: items.filter(item => item.review).length > 0
+      ? (items.filter(item => item.review).reduce((sum, item) => sum + item.review.rating, 0) / 
+         items.filter(item => item.review).length).toFixed(1)
+      : 0
+  };
+
+  const StarRating = ({ rating }) => {
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`w-5 h-5 ${
+              star <= rating
+                ? 'fill-yellow-400 text-yellow-400'
+                : 'text-white/20'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -142,6 +159,12 @@ const ManageOrderCard = ({ order, onStatusUpdate }) => {
                   <div className={`px-3 py-1.5 rounded-full text-xs font-semibold border bg-gradient-to-r ${getStatusColor(paymentStatus)}`}>
                     {paymentStatus}
                   </div>
+                  {reviewStats.total > 0 && (
+                    <div className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-500/30 text-yellow-300 flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 fill-yellow-400" />
+                      {reviewStats.averageRating} ({reviewStats.total} {reviewStats.total === 1 ? 'review' : 'reviews'})
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -149,9 +172,9 @@ const ManageOrderCard = ({ order, onStatusUpdate }) => {
               <div className="text-right">
                 <p className="text-sm text-white/60 mb-1">Your Revenue</p>
                 <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
-                  ₹{sellerRevenue?.toLocaleString()}
+                  रु{sellerRevenue?.toLocaleString()}
                 </p>
-                <p className="text-xs text-white/40 mt-1">Total: ₹{totalOrderAmount?.toLocaleString()}</p>
+                <p className="text-xs text-white/40 mt-1">Total: रु{totalOrderAmount?.toLocaleString()}</p>
               </div>
             </div>
 
@@ -290,7 +313,7 @@ const ManageOrderCard = ({ order, onStatusUpdate }) => {
                             
                             <div className="flex items-center gap-4 text-sm text-white/60 mb-2">
                               <span>Qty: {item.quantity}</span>
-                              <span>₹{item.priceAtPurchase?.toLocaleString()} each</span>
+                              <span>रु{item.priceAtPurchase?.toLocaleString()} each</span>
                             </div>
 
                             <div className="flex items-center gap-2 text-xs text-white/50">
@@ -303,10 +326,83 @@ const ManageOrderCard = ({ order, onStatusUpdate }) => {
                           <div className="text-right">
                             <p className="text-xs text-white/50 mb-1">Subtotal</p>
                             <p className="text-xl font-bold text-white">
-                              ₹{item.subtotal?.toLocaleString()}
+                              रु{item.subtotal?.toLocaleString()}
                             </p>
                           </div>
                         </div>
+
+                        {/* Buyer Review Section */}
+                        {orderStatus === 'COMPLETED' && (
+                          <div className="mt-4 pt-4 border-t border-white/10">
+                            {item.review ? (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="space-y-3"
+                              >
+                                {/* Review Header */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-full flex items-center justify-center">
+                                      <Award className="w-4 h-4 text-white" />
+                                    </div>
+                                    <div>
+                                      <h6 className="text-sm font-semibold text-white/90">
+                                        Buyer Review
+                                      </h6>
+                                      <p className="text-xs text-white/50">
+                                        {formatDate(item.review.createdAt)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="flex items-center gap-1">
+                                      <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                                      <span className="text-lg font-bold text-yellow-400">
+                                        {item.review.rating}
+                                      </span>
+                                      <span className="text-sm text-white/50">/5</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Star Rating Display */}
+                                <div className="flex items-center gap-2">
+                                  <StarRating rating={item.review.rating} />
+                                </div>
+
+                                {/* Review Text */}
+                                {item.review.reviewText && (
+                                  <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-lg p-4 border border-white/10">
+                                    <div className="flex items-start gap-2">
+                                      <MessageSquare className="w-4 h-4 text-cyan-400 mt-1 flex-shrink-0" />
+                                      <p className="text-sm text-white/90 leading-relaxed">
+                                        "{item.review.reviewText}"
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Review Badge */}
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-full">
+                                    <ThumbsUp className="w-3 h-3 text-emerald-300" />
+                                    <span className="text-xs font-semibold text-emerald-300">
+                                      Verified Purchase
+                                    </span>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ) : (
+                              <div className="p-4 bg-white/5 rounded-lg border border-dashed border-white/20 text-center">
+                                <MessageSquare className="w-8 h-8 text-white/30 mx-auto mb-2" />
+                                <p className="text-sm text-white/50">
+                                  Buyer hasn't reviewed this product yet
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </motion.div>
                     ))}
                   </div>

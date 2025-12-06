@@ -11,7 +11,7 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // ✅ NEW: State for transaction history
+  
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
@@ -21,7 +21,7 @@ export default function WalletPage() {
 
   const topupAmounts = [500, 1000, 2500, 5000, 10000];
 
-  // ✅ NEW: Fetch transaction history
+  
   const fetchTransactionHistory = async () => {
     setHistoryLoading(true);
     setHistoryError(null);
@@ -99,7 +99,7 @@ export default function WalletPage() {
     }
   };
 
-  // ✅ NEW: Format date helper
+ 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -125,7 +125,7 @@ export default function WalletPage() {
           <h1 className="text-3xl font-bold mb-2">Wallet</h1>
           <p className="text-gray-400">Top up or view your transaction history</p>
           
-          {/* ✅ NEW: Wallet Balance Display */}
+         
           {walletBalance > 0 && (
             <div className="mt-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-xl p-4">
               <p className="text-sm text-gray-400">Current Balance</p>

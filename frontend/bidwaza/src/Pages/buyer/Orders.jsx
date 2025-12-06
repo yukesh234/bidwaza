@@ -13,7 +13,7 @@ function Orders() {
 
   useEffect(() => {
     fetchOrders();
-  }, []); // ⭐ Added dependency array - was missing!
+  }, []); 
 
   const fetchOrders = async () => {
     try {
@@ -112,7 +112,9 @@ function Orders() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <OrderCard order={order} />
+                <OrderCard order={order} 
+                onReviewUpdate={fetchOrders}
+                />
               </motion.div>
             ))}
           </div>

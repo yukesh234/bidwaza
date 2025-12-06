@@ -1,19 +1,20 @@
 import React from 'react'
 import { motion } from "framer-motion"
 
-function StatsCard({ stat }) {
+export function StatsCard({ stat }) {
+  const Icon = stat.icon;
   return (
-    <motion.div 
-      className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all"
-      whileHover={{ scale: 1.02 }}
+    <motion.div
+      whileHover={{ scale: 1.05 }}
+      className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20"
     >
-      <div className={`w-12 h-12 bg-gradient-to-r ${stat.color} rounded-xl flex items-center justify-center mb-4`}>
-        <stat.icon className="w-6 h-6 text-white" />
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color}`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
       </div>
-      <div className="text-2xl font-bold text-white">{stat.value}</div>
-      <div className="text-white/60 text-sm">{stat.label}</div>
+      <p className="text-white/60 text-sm mb-1">{stat.label}</p>
+      <p className="text-3xl font-bold text-white">{stat.value}</p>
     </motion.div>
-  )
+  );
 }
-
-export default StatsCard

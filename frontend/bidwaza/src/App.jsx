@@ -1,8 +1,6 @@
 import { useState } from 'react'
-
 import './App.css'
-import Navbar from './Components/Header/Navbar'
-import {Route, Routes} from 'react-router-dom'
+import { Route, Routes, Navigate } from 'react-router-dom'
 import Layout from './Layouts/Layout'
 import Home from './Pages/buyer/Home'
 import Login from './Pages/buyer/Login'
@@ -20,15 +18,21 @@ import Orders from './Pages/buyer/Orders.jsx'
 import WalletPage from './Pages/buyer/Wallet.jsx'
 import WalletSuccess from './Pages/buyer/WalletSuccess.jsx'
 import { WalletFailure } from './Pages/buyer/WalletFailure.jsx'
+import Profile from './Pages/buyer/Profile.jsx'
+import ForgetPassword from './Pages/ForgetPassword.jsx'
+import VerifyPasswordReset from './Pages/VerifyPasswordReset.jsx'
+import ResetPassword from './Pages/ResetPassword.jsx'
+import { useAuth } from './Context/Authcontext.jsx'
 
 function App() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <>
       <Routes>
         {/* Buyer Routes with Layout */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
-           <Route path="/wallet" element ={<WalletPage/>} />
         </Route>
 
         {/* User Auth Routes */}
@@ -37,20 +41,48 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/uploadpfp" element={<Uploadpfp />} />
-         
+          <Route path='/forget-password' element={<ForgetPassword />} />
+          <Route path='/verify-password-reset' element={<VerifyPasswordReset />} />
+          <Route path='/reset-password' element={<ResetPassword />} />
         </Route>
 
-        {/* Buyer Product Routes */}
-        <Route path="/cart" element={<Cart />} />
+        {/* Protected Buyer Routes */}
+        <Route 
+          path="/cart" 
+          element={isAuthenticated ? <Cart /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/orders" 
+          element={isAuthenticated ? <Orders /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/profile" 
+          element={isAuthenticated ? <Profile /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/wallet" 
+          element={isAuthenticated ? <WalletPage /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/wallet/success" 
+          element={isAuthenticated ? <WalletSuccess /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/wallet/failure" 
+          element={isAuthenticated ? <WalletFailure /> : <Navigate to="/login" replace />} 
+        />
+
+        {/* Public Product Routes */}
         <Route path="/product/:productId" element={<BuyProduct />} />
+        <Route path="/productinfo/:itemId" element={<Productinfo />} />
         <Route path="/esewa/success" element={<PaymentSuccess />} />
         <Route path="/esewa/failure" element={<PaymentFailure />} />
-          <Route path="/productinfo/:itemId" element={<Productinfo />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/wallet/success" element={<WalletSuccess />} />
-          <Route path="/wallet/failure" element={<WalletFailure />} />
+
         {/* Seller Dashboard Routes - Nested routing */}
-        <Route path="/seller/*" element={<SellerDashboard />} />
+        <Route 
+          path="/seller/*" 
+          element={isAuthenticated ? <SellerDashboard /> : <Navigate to="/login" replace />} 
+        />
       </Routes>
     </>
   )

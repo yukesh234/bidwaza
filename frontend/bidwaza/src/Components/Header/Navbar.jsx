@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../Context/Authcontext.jsx'
 import { 
   ChevronDown, 
@@ -7,8 +7,6 @@ import {
   Wallet, 
   Store, 
   LogOut, 
-  Settings,
-  Crown,
   Search,
   ShoppingCart,
   X,
@@ -21,12 +19,24 @@ function Navbar() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [cartCount, setCartCount] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
     const dropdownRef = useRef(null);
+    const searchTimeoutRef = useRef(null);
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     
-    const { logout, isAuthenticated, user } = useAuth();
-   
-    
+    const { logout, isAuthenticated, user, balance } = useAuth();
+//    console.log("Navbar user:", user);
+    // Initialize search query from URL params
+    useEffect(() => {
+        const query = searchParams.get('search');
+        if (query) {
+            setSearchQuery(query);
+        } else {
+            setSearchQuery('');
+        }
+    }, [searchParams]);
+
     // Fetch cart count
     useEffect(() => {
         const fetchCartCount = async () => {
@@ -45,7 +55,7 @@ function Navbar() {
         fetchCartCount();
         
         // Refresh cart count every 30 seconds
-        const interval = setInterval(fetchCartCount, 30000);
+        const interval = setInterval(fetchCartCount, 3000);
         return () => clearInterval(interval);
     }, [isAuthenticated]);
     
@@ -89,12 +99,65 @@ function Navbar() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // LIVE SEARCH: Search as user types with debounce
+    useEffect(() => {
+        // Clear existing timeout
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        // Only search if there's a query or if clearing search
+        if (searchQuery.trim() || searchParams.get('search')) {
+            // Debounce: wait 500ms after user stops typing
+            searchTimeoutRef.current = setTimeout(() => {
+                if (searchQuery.trim()) {
+                    // console.log('🔍 Live search triggered:', searchQuery.trim());
+                    navigate(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+                } else {
+                    // If search is empty, go back to home
+                    // console.log('🧹 Search cleared');
+                    navigate('/');
+                }
+            }, 300); // 500ms debounce delay
+        }
+
+        // Cleanup timeout on unmount
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchQuery, navigate]);
+
+    // Handle search submit (when Enter is pressed)
+    const handleSearch = (e) => {
+        e.preventDefault();
+        
+        // Clear timeout since we're submitting immediately
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        if (searchQuery.trim()) {
+            // console.log('⚡ Instant search (Enter pressed):', searchQuery.trim());
+            navigate(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+        } else {
+            navigate('/');
+        }
+    };
+
+    // Clear search
+    const clearSearch = () => {
+        setSearchQuery('');
+        navigate('/');
+    };
+
     // Dropdown menu items
     const dropdownItems = [
         {
             name: "Profile",
             icon: User,
-            path: "/uploadpfp",
+            path: "/Profile",
             description: "Manage your account"
         },
         {
@@ -113,14 +176,14 @@ function Navbar() {
             name: "Orders",
             icon: Package,
             path: "/orders",
-            description: "App preferences"
+            description: "View order history"
         }
     ];
 
     const handleLogout = () => {
         setIsDropdownOpen(false);
         logout();
-          window.location.reload();
+        window.location.reload();
     };
 
     // Handle cart click
@@ -137,7 +200,7 @@ function Navbar() {
         <AnimatePresence>
             {showAuthModal && (
                 <motion.div
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10000] flex items-center justify-center p-4"
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10001] flex items-center justify-center p-4"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -193,42 +256,50 @@ function Navbar() {
 
     return (
         <>
-            <div className='relative z-[1000]'>
+            {/* Fixed navbar with proper z-index */}
+            <div className='fixed top-0 left-0 right-0 z-[100]'>
                 {/* Glass morphism navbar */}
-                <div className='backdrop-blur-md bg-white/10 border border-white/20 rounded-xl mx-4 mt-4 p-4 shadow-2xl relative z-[1001]'>
+                <div className='backdrop-blur-md bg-white/10 border border-white/20 rounded-xl mx-4 mt-4 p-4 shadow-2xl'>
                     
-                    <div className='flex justify-between items-center'>
+                    <div className='flex justify-between items-center gap-4'>
                         {/* Left side - Logo */}
-                        <div className='flex py-1.5 items-center gap-8'>
-                            <NavLink
-                                to="/"
-                                className={({ isActive }) =>
-                                    isActive
-                                        ? "text-cyan-300 text-xl font-bold relative after:content-[''] after:absolute after:w-full after:h-0.5 after:bg-cyan-300 after:left-0 after:-bottom-1 after:rounded-full transition-all duration-300"
-                                        : "text-white/80 text-xl hover:text-cyan-300 transition-all duration-300 relative after:content-[''] after:absolute after:w-0 after:h-0.5 after:bg-cyan-300 after:left-0 after:-bottom-1 after:rounded-full hover:after:w-full after:transition-all after:duration-300"
-                                }
-                            >
-                                <div className='flex items-center gap-2'>
-                                    <Crown className='w-6 h-6' />
-                                    Bidwaza
+                        <NavLink
+                            to="/"
+                            className="text-white/80 hover:text-cyan-300 transition-all duration-300 flex-shrink-0"
+                        >
+                            <div className='flex items-center gap-2'>
+                                <div className="w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center">
+                                    <span className="text-white font-bold text-lg">B</span>
                                 </div>
-                            </NavLink>
-                        </div>
+                                <span className="text-xl font-bold hidden sm:block">Bidwaza</span>
+                            </div>
+                        </NavLink>
 
-                        {/* Center - Search Bar */}
-                        <div className='flex-1 max-w-2xl mx-8'>
+                        {/* Center - Search Bar with Live Search */}
+                        <form onSubmit={handleSearch} className='flex-1 max-w-2xl'>
                             <div className="relative">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                                 <input
                                     type="text"
-                                    placeholder="Search products..."
-                                    className="w-full pl-12 pr-6 py-3 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-cyan-400 focus:outline-none text-white placeholder:text-gray-400"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search products... (type to search)"
+                                    className="w-full pl-12 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-cyan-400 focus:outline-none text-white placeholder:text-gray-400"
                                 />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={clearSearch}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                )}
                             </div>
-                        </div>
+                        </form>
 
                         {/* Right side - Cart & User */}
-                        <div className='flex items-center gap-4'>
+                        <div className='flex items-center gap-3 flex-shrink-0'>
                             {/* Shopping Cart */}
                             <motion.button
                                 className="relative p-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 cursor-pointer transition-all duration-300"
@@ -248,9 +319,27 @@ function Navbar() {
                                 )}
                             </motion.button>
 
+                            {/* Wallet Balance */}
+                            {isAuthenticated && (
+                                <motion.button
+                                    onClick={() => navigate("/wallet")}
+                                    className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500/20 to-emerald-500/20 hover:from-green-500/30 hover:to-emerald-500/30 border border-green-400/30 hover:border-green-400/50 rounded-full transition-all duration-300 hover:shadow-lg hover:shadow-green-500/25"
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                >
+                                    <Wallet className="w-5 h-5 text-green-300" />
+                                    <div className="flex flex-col items-start">
+                                        <span className="text-white font-medium text-sm">
+                                            रु{balance ? balance.toLocaleString() : "0"}
+                                        </span>
+                                        <span className="text-green-300 text-xs">Balance</span>
+                                    </div>
+                                </motion.button>
+                            )}
+
                             {/* User Profile or Login/Signup */}
                             {isAuthenticated ? (
-                                <div className='relative z-[1002]' ref={dropdownRef}>
+                                <div className='relative' ref={dropdownRef}>
                                     {/* User Profile Button */}
                                     <button
                                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -273,8 +362,8 @@ function Navbar() {
                                             <div className='absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-white/20 rounded-full'></div>
                                         </div>
                                         
-                                        {/* User name */}
-                                        <div className='flex flex-col items-start'>
+                                        {/* User name - hidden on mobile */}
+                                        <div className='hidden sm:flex flex-col items-start'>
                                             <span className='text-white font-medium text-sm'>
                                                 {user?.FIRST_NAME || user?.first_name || "User"}
                                             </span>
@@ -291,9 +380,9 @@ function Navbar() {
                                         />
                                     </button>
 
-                                    {/* Dropdown Menu */}
+                                    {/* Dropdown Menu - Higher z-index */}
                                     {isDropdownOpen && (
-                                        <div className='absolute right-0 mt-2 w-72 bg-gray-900/95 backdrop-blur-md border border-cyan-400/20 rounded-2xl shadow-2xl shadow-cyan-500/10 overflow-hidden z-[9999] animate-in slide-in-from-top-2 duration-200'>
+                                        <div className='absolute right-0 mt-2 w-72 bg-gray-900/95 backdrop-blur-md border border-cyan-400/20 rounded-2xl shadow-2xl shadow-cyan-500/10 overflow-hidden z-[200] animate-in slide-in-from-top-2 duration-200'>
                                             {/* User info header */}
                                             <div className='px-6 py-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-b border-cyan-400/20'>
                                                 <div className='flex items-center gap-3'>
@@ -373,8 +462,8 @@ function Navbar() {
                                         to="/signup"
                                         className={({ isActive }) =>
                                             isActive
-                                                ? "px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-full shadow-lg transform scale-105 transition-all duration-300"
-                                                : "px-6 py-2 text-white/80 hover:text-white font-medium rounded-full border border-white/20 hover:border-white/40 hover:bg-white/10 transition-all duration-300 hover:shadow-lg"
+                                                ? "hidden sm:block px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-full shadow-lg transform scale-105 transition-all duration-300"
+                                                : "hidden sm:block px-6 py-2 text-white/80 hover:text-white font-medium rounded-full border border-white/20 hover:border-white/40 hover:bg-white/10 transition-all duration-300 hover:shadow-lg"
                                         }
                                     >
                                         Signup

@@ -14,6 +14,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [balance,setbalance] = useState(null)
+  const [cartRefreshTrigger, setCartRefreshTrigger] = useState(0);
 
   useEffect(() => {
     checkAuth();
@@ -22,9 +24,12 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       const response = await api.post("/getCurrentUser");
+      
       if (response.data.user) {
+        
         setUser(response.data.user);
         setIsAuthenticated(true);
+        setbalance(response.data.balance[0])
       } else {
         setUser(null);
         setIsAuthenticated(false);
@@ -131,17 +136,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+
+
   const value = useMemo(() => ({
     user,
     isAuthenticated,
     loading,
+    balance,
     register,
     login,
     logout,
     sendVerificationCode,
     verifyCode,
-    resendCode,
-  }), [user, isAuthenticated, loading]);
+    resendCode
+  }), [user, isAuthenticated, loading,]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

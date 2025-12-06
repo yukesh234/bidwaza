@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import SellerNavbar from '../../Components/seller/SellerNavbar'
 import SellerSidebar from '../../Components/seller/SellerSidebar'
@@ -6,11 +6,11 @@ import Overview from './Overview'
 import Listing from './Listing'
 import CommingSoon from './CommingSoon'
 import CreateListingModal from '../../Components/seller/CreateListingModal'
-import { TrendingUp, MessageCircle, Settings,Package
- } from "lucide-react"
+import { TrendingUp, MessageCircle, Settings, Package } from "lucide-react"
 import toast from 'react-hot-toast'
 import Order from './Order'
-import {updatestatus, getSellerStats} from '../../services/sellerservices.js'
+import { updatestatus, getSellerStats,deleteProduct } from '../../services/sellerservices.js'
+import ComprehensiveAnalytics from './ComprehensiveAnalytics.jsx'
 
 function SellerDashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -27,21 +27,13 @@ function SellerDashboard() {
   const [recentActivity, setRecentActivity] = useState([])
 
   useEffect(() => {
-    // TODO: Fetch seller stats from API
-    // fetchSellerStats().then(data => setSellerStats(data))
-    
     fetchSellerStats();
-    
-    // TODO: Fetch recent activity from API
-    // fetchRecentActivity().then(data => setRecentActivity(data))
   }, [])
 
-  const fetchSellerStats = async() =>
-  {
+  const fetchSellerStats = async () => {
     try {
       const response = await getSellerStats();
-      if(response.success)
-      {
+      if (response.success) {
         console.log("fetched successfully");
         setSellerStats(response.data)
       }
@@ -50,49 +42,51 @@ function SellerDashboard() {
     }
   }
 
-  // Handle listing deletion
-  const handleDeleteListing = async (listingId) => {
+  // Memoize callback functions to prevent re-creating on every render
+  const handleDeleteListing = useCallback(async (listingId) => {
     try {
       // TODO: Call your API to delete the listing
       // await deleteListingAPI(listingId)
-      
+      const response = await deleteProduct(listingId);
+      if(response.success){
       toast.success('Listing deleted successfully')
+      }
     } catch (error) {
       console.error('Error deleting listing:', error)
       toast.error('Failed to delete listing')
     }
-  }
+  }, [])
 
-  // Handle status change
-  const handleStatusChange = async (listingId, newStatus) => {
+  const handleStatusChange = useCallback(async (listingId, newStatus) => {
     try {
       // TODO: Call your API to update the listing status
       // await updateListingStatusAPI(listingId, newStatus)
       const response = await updatestatus(newStatus.toUpperCase(), listingId)
-      if(response.success)
-      {
-         console.log(listingId, newStatus)
+      if (response.success) {
+        console.log(listingId, newStatus)
         toast.success(`Listing status updated to ${newStatus}`)
       }
-     
     } catch (error) {
       console.error('Error updating listing status:', error)
       toast.error('Failed to update listing status')
     }
-  }
+  }, [])
 
-  // Handle modal close with refresh
-  const handleModalClose = () => {
+  const handleCreateClick = useCallback(() => {
+    setShowCreateModal(true)
+  }, [])
+
+  const handleModalClose = useCallback(() => {
     setShowCreateModal(false)
     // Trigger refresh in Listing component
     if (window.refreshListings) {
       window.refreshListings()
     }
-  }
+  }, [])
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-slate-800 via-teal-800 to-slate-900'>
-      <SellerNavbar onCreateClick={() => setShowCreateModal(true)} />
+      <SellerNavbar onCreateClick={handleCreateClick} />
 
       <div className='max-w-7xl mx-auto px-6 py-8'>
         <div className='flex gap-8 items-start'>
@@ -114,7 +108,7 @@ function SellerDashboard() {
                 path="/listings" 
                 element={
                   <Listing 
-                    onCreateClick={() => setShowCreateModal(true)}
+                    onCreateClick={handleCreateClick}
                     onDelete={handleDeleteListing}
                     onStatusChange={handleStatusChange}
                   />
@@ -122,7 +116,7 @@ function SellerDashboard() {
               />
               <Route 
                 path="/analytics" 
-                element={<CommingSoon icon={TrendingUp} title="Analytics" />} 
+                element={<ComprehensiveAnalytics />} 
               />
               <Route 
                 path="/messages" 
@@ -136,9 +130,7 @@ function SellerDashboard() {
                 path="/settings" 
                 element={<CommingSoon icon={Settings} title="Settings" />} 
               />
-              
             </Routes>
-            
           </main>
         </div>
       </div>

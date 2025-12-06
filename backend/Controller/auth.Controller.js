@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 
 // Import services
-import { sendverificationCode as sendVerificationService, resendCode, verifyCode } from "../Service/emailService.js";
+import { sendverificationCode as sendVerificationService, resendCode, verifyCode,verifyPasswordResetCode,sendPasswordResetCode,resendPasswordResetCode } from "../Service/emailService.js";
 dotenv.config();
 
 
@@ -180,6 +180,7 @@ function logout (req,res)
 
 async function getCurrentUser(req, res) {
   let connection; // Add this
+  const userId = req.user.ID;
   try {
     const token = req.cookies.token;
     if (!token) {
@@ -198,8 +199,16 @@ async function getCurrentUser(req, res) {
     if (result.rows.length === 0) {
       return res.status(401).json({ message: 'User not found' });
     }
+
+    //getting balance
+        const amountresult = await connection.execute(
+        `SELECT BALANCE FROM WALLETS WHERE USER_ID = :user_id`,
+        { user_id: userId },
+       
+      );
+      
     
-    res.json({ user: result.rows[0] });
+    res.json({ user: result.rows[0], balance: amountresult.rows[0] });
   } catch (error) {
     res.status(401).json({ message: 'Invalid token' });
   } finally {
@@ -314,6 +323,90 @@ export async function updatePassword(req, res) {
   }
 }
 
+
+async function forgotPassword(req,res)
+{
+  let connection;
+  try {
+    const { email } = req.body;
+    if(!email) return res.status(400).send({message:"Email is required", success:false});
+    //check if email exists 
+    connection = await getConnection();
+    const result = await connection.execute(
+      `select id from users where email = :email`,
+      { email },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT } 
+    )
+
+    if(result.rows.length === 0)
+    {
+      return  res.status(400).send({message:"Email not found", success:false});
+    }
+
+
+    const response = await sendPasswordResetCode(email);
+    return res.status(response.success ? 200 : 400).send(response);
+  } catch (error) {
+     res.status(500).send({ message: "Failed to send password reset code", error: error.message, success: false });
+  }
+}
+
+ async function resendPasswordResetCodeController(req,res){
+  let connection;
+  try {
+    const { email } = req.body;
+    if(!email) return res.status(400).send({message:"Email is required", success:false});
+    const response = await resendPasswordResetCode(email);
+    return res.status(response.success ? 200 : 400).send(response);
+  } catch (error) {
+    return res.status(500).send({ message: "Failed to resend password reset code", error: error.message, success: false });
+  }
+}
+
+ async function verifyPasswordResetCodeController(req,res){
+  let connection;
+  try {
+    const { email, code } = req.body;
+    if(!email || !code) return res.status(400).send({message:"Email and code are required", success:false});
+    const response = await verifyPasswordResetCode(email,code);
+    return res.status(response.success ? 200 : 400).send(response);
+  } catch (error) {
+    return res.status(500).send({ message: "Failed to verify password reset code", error: error.message, success: false });
+  }
+}
+
+ async function resetpassword(req,res)
+{
+  let connection;
+  try {
+    const {newpassword,email} = req.body;
+    if(!newpassword || !email) return res.status(400).send({message:"Email and new password are required", success:false});
+      
+    
+    connection = await getConnection();
+    //hashing new password 
+    const hashedPassword  = await bcrypt.hash(newpassword,10);
+    //updating the password in the database 
+
+    const result = await connection.execute(
+      `update users set password = :Password where email =:email`,
+      { Password: hashedPassword,email  },
+      { autoCommit: true }
+    )
+    if(result.rowsAffected === 0)
+    {
+      return res.status(400).send({message:"User not found", success:false});
+    }
+    return res.status(200).send({message:"Password reset successfully", success:true});
+
+  } catch (error) {
+    console.log("reset password error:",error);
+    return res.status(500).send({ message: "Error while resetting password", error: error.message, success: false });
+  }
+}
+
+
+
 export default {
   register,
   login,
@@ -322,5 +415,9 @@ export default {
   sendVerificationCode,
   resendVerificationCode,
   verifyEmailCode,
-  updatePassword
+  updatePassword,
+  forgotPassword,
+  resendPasswordResetCodeController,
+  verifyPasswordResetCodeController,
+  resetpassword
 };

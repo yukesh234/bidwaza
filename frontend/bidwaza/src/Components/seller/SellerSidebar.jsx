@@ -9,9 +9,9 @@ function SellerSidebar() {
     { id: 'overview', label: 'Overview', icon: BarChart3, path: '/seller/overview' },
     { id: 'listings', label: 'My Listings', icon: Package, path: '/seller/listings' },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp, path: '/seller/analytics' },
-    { id: 'messages', label: 'Messages', icon: MessageCircle, path: '/seller/messages' },
+    // { id: 'messages', label: 'Messages', icon: MessageCircle, path: '/seller/messages' },
     { id: 'orders', label: 'Orders', icon: Package, path: '/seller/orders' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/seller/settings' }
+    // { id: 'settings', label: 'Settings', icon: Settings, path: '/seller/settings' }
   ]
 
   return (

@@ -81,20 +81,26 @@ export const updateCartItemQuantity = async(cartItemId, newQuantity) =>{
   }
 }
 
-export const getProductById = async (itemId) =>{
+export const getProductById = async (itemId) => {
   try {
-    console.log('getproductby id function called with itemId:',itemId);
+    console.log('getproductby id function called with itemId:', itemId);
     const response = await api.get(`/user/getProductsByid/${itemId}`);
     console.log('Response from getProductById:', response.data);
-    if(response.data.success)
-    {
-      return {success:true, product: response.data.data || {}}
-     
+
+    if (response.data.success) {
+      return { success: true, data: response.data.data || {} };
     }
+
+    return { success: false, message: "Product not found" };
+
   } catch (error) {
-    return {success:false, message: error.response?.data?.message || "Error fetching product details"}
+    return {
+      success: false,
+      message: error.response?.data?.message || "Error fetching product details",
+    };
   }
-}
+};
+
 
 // NEW: Initiate payment for Buy Now (single product)
 export const initiateBuyNowPayment = async (productId, quantity,amount) => {
@@ -162,6 +168,7 @@ export const getOrderhistory = async () => {
     const response = await api.get('/user/getOrderHistory');
     if (response.data.success) {
       // Return the full data object which contains orders array
+      // console.log("order history response data:", response.data);
       return { 
         success: true, 
         data: response.data.data // This contains { orders: [...], totalOrders: 7 }
@@ -175,3 +182,112 @@ export const getOrderhistory = async () => {
     };
   }
 };
+
+export const submitReview_Rating = async (orderItemId,productId,rating,reviewText)=>{
+  try {
+    const response = await api.post('/user/addReviewsAndRatings',
+      {
+        orderItemId,
+        productId,
+        rating,
+        reviewText
+      }
+    );
+    if(response.data.success)
+    {
+      return {success:true, message: response.data.message || "Review and rating submitted successfully"}
+    }
+    else{
+      return {success:false, message: response.data.message || "Error submitting review and rating"}
+    }
+  } catch (error) {
+    console.log|("submiiting error",error);
+    return {success:false, message: error.response?.data?.message || "Error submitting review and rating"}
+  }
+
+}
+
+export const forgetPassword = async(email)=>
+{
+  try {
+    const response = await api.post('/forgetpassword',{
+      email
+    })
+    if(response.data.success){
+      return {
+        success:true,
+        message: response.data.message || "Password reset link sent to your email"
+      }
+    }
+  } catch (error) {
+    console.log("error in forget password service", error);
+    return {
+      success:false,
+      message: error.response?.data?.message || "Error in forget password request"
+    }
+  }
+}
+
+export const verifyResetCode = async(email, code)=>
+{
+  try {
+    const response = await api.post('/verify-password-reset-code',{
+      email,
+      code
+    })
+    if(response.data.success){
+      return {
+        success:true,
+        message: response.data.message || "Verification code is valid"
+      }
+    } 
+ } catch (error) {
+    console.log("error in verify reset code service", error);
+    return {
+      success:false,
+      message: error.response?.data?.message || "Error in verifying reset code"
+    }
+  }
+}
+
+export const resendCode = async(email)=> {
+  try {
+    const response = await api.post('/verify-password-reset-code',{
+      email
+    });
+    if(response.data.success){
+      return {
+          success:true,
+          message: response.data.message || "Verification code resent to your email"
+      }
+        }
+  } catch (error) {
+   console.log("error in resend code service", error);
+   return {
+    success:false,
+    message: error.response?.data?.message || "Error in resending code"
+   } 
+  }
+}
+
+export const resetPassword = async (email,newpassword)=>{
+  try {
+    const response = await api.put('/reset-password',{
+      email,
+      newpassword
+    })
+    if(response.data.success)
+    {
+      return {
+        success:true,
+        message: response.data.message || "Password reset successfully"
+      }
+    }
+  } catch (error) {
+   console.log("error in reset password service", error);
+    return {  
+      success:false,
+      message: error.response?.data?.message || "Error in resetting password"
+    } 
+  }
+}

@@ -1,22 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../Context/Authcontext";
+import { useSocket } from "../../Context/SocketContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, User } from "lucide-react";
+import { X, User, SlidersHorizontal } from "lucide-react";
 import api from "../../API/api.js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import ProductCard from "../../Components/Cards.jsx";
 import { addtocart } from "../../services/userservices.js";
 import toast from "react-hot-toast";
 import { usePayment } from "../../hooks/usePayment.js";
-import BidModal from "../../Components/buyer/BidModal.jsx"; 
+import BidModal from "../../Components/buyer/BidModal.jsx";
+import FilterModal from "../../Components/buyer/FilterModal.jsx";
 
 export default function Home() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, balance } = useAuth();
+  const { socket, connected, joinAuction, leaveAuction } = useSocket();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showBidModal, setShowBidModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [bidAmount, setBidAmount] = useState("");
   const [products, setProducts] = useState([]);
+  const [registeredProducts, setRegisteredProducts] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({
     totalPages: 1,
@@ -28,30 +33,162 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { handleBuyNow } = usePayment();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Initialize filters from URL params
+  const [filters, setFilters] = useState({
+    category: searchParams.get('category') || '',
+    productType: searchParams.get('product_type') || '',
+    minPrice: searchParams.get('minPrice') || '',
+    maxPrice: searchParams.get('maxPrice') || '',
+    minRating: searchParams.get('minRating') || '',
+    sortBy: searchParams.get('sortBy') || 'newest'
+  });
 
-  // === Fetch Products ===
-  const fetchProducts = async (page) => {
-    setLoading(true);
+  // Check registration status for a single product
+  const checkRegistrationStatus = async (itemId) => {
+    if (!isAuthenticated) return false;
+    
     try {
-      const response = await api.get(`/user/getProducts?page=${page}&limit=8`);
-      if (response.data.success) {
-        setProducts(response.data.data.products || []);
-        setPagination(response.data.data.pagination);
-      } else {
-        toast.error("Failed to load products");
-      }
-    } catch (err) {
-      toast.error("Error loading products");
-    } finally {
-      setLoading(false);
+      const response = await api.get(`/auction/checkRegistration/${itemId}`);
+      return response.data.registered || false;
+    } catch (error) {
+      console.error("Failed to check registration:", error);
+      return false;
     }
   };
 
+  // Fetch Products with filters and check registration status
+const fetchProducts = async (page) => {
+  setLoading(true);
+  try {
+    const search = searchParams.get('search') || '';
+    
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: '8',
+    });
+
+    // Add search if present
+    if (search) params.append('search', search);
+    
+    // Add filters if present
+    if (filters.category) params.append('category', filters.category);
+    if (filters.productType) params.append('product_type', filters.productType);
+    if (filters.minPrice) params.append('minPrice', filters.minPrice);
+    if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
+    if (filters.minRating) params.append('minRating', filters.minRating);
+    if (filters.sortBy) params.append('sortBy', filters.sortBy);
+
+    const response = await api.get(`/user/getProducts?${params.toString()}`);
+
+    if (response.data.success) {
+      const fetchedProducts = response.data.data.products || [];
+      setProducts(fetchedProducts);
+      setPagination(response.data.data.pagination);
+      
+      // No need to check registration status anymore - it's included in the response!
+    } else {
+      toast.error("Failed to load products");
+    }
+  } catch (err) {
+    console.error('Fetch error:', err);
+    toast.error("Error loading products");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
+
+  // Fetch products when page or searchParams change
   useEffect(() => {
     fetchProducts(currentPage);
-  }, [currentPage]);
+  }, [currentPage, searchParams, filters]);
 
-  // === Pagination Handler ===
+  // Sync filters with URL params when URL changes
+  useEffect(() => {
+    const newFilters = {
+      category: searchParams.get('category') || '',
+      productType: searchParams.get('product_type') || '',
+      minPrice: searchParams.get('minPrice') || '',
+      maxPrice: searchParams.get('maxPrice') || '',
+      minRating: searchParams.get('minRating') || '',
+      sortBy: searchParams.get('sortBy') || 'newest'
+    };
+    
+    setFilters(newFilters);
+  }, [searchParams]);
+
+  // Reset page when search changes
+  const [prevSearch, setPrevSearch] = useState(searchParams.get('search') || '');
+
+  useEffect(() => {
+    const search = searchParams.get('search') || '';
+    if (search !== prevSearch) {
+      setCurrentPage(1);
+      setPrevSearch(search);
+    }
+  }, [searchParams, prevSearch]);
+
+  // Join auction rooms for displayed products
+  useEffect(() => {
+    if (connected && products.length > 0) {
+      products.forEach(product => {
+        if (product.productType === 'AUCTION' || product.productType === 'REGISTRATION') {
+          joinAuction(product.itemId);
+        }
+      });
+    }
+
+    return () => {
+      if (connected && products.length > 0) {
+        products.forEach(product => {
+          if (product.productType === 'AUCTION' || product.productType === 'REGISTRATION') {
+            leaveAuction(product.itemId);
+          }
+        });
+      }
+    };
+  }, [connected, products, joinAuction, leaveAuction]);
+
+  // Listen for real-time bid updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleBidUpdate = (data) => {
+      console.log('Bid update received:', data);
+      
+      setProducts(prevProducts => 
+        prevProducts.map(product => 
+          product.itemId === data.itemId
+            ? {
+                ...product,
+                auctionDetails: {
+                  ...product.auctionDetails,
+                  currentPrice: data.currentPrice
+                }
+              }
+            : product
+        )
+      );
+
+      if (data.bidderId !== user?.id) {
+        toast(`New bid: रु${data.bidAmount.toLocaleString()} by ${data.bidderName}`, {
+          icon: '📢',
+          duration: 3000
+        });
+      }
+    };
+
+    socket.on('bid-update', handleBidUpdate);
+
+    return () => {
+      socket.off('bid-update', handleBidUpdate);
+    };
+  }, [socket, user]);
+
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages && newPage !== currentPage) {
       setCurrentPage(newPage);
@@ -59,7 +196,6 @@ export default function Home() {
     }
   };
 
-  // === Add to Cart ===
   const onAddToCart = async (product) => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
@@ -67,14 +203,16 @@ export default function Home() {
     }
     try {
       const response = await addtocart(product.itemId);
-      if (response.success) toast.success(response.message);
-      else toast.error(response.message);
+      if (response.success) {
+        toast.success(response.message);
+      } else {
+        toast.error(response.message);
+      }
     } catch {
       toast.error("Failed to add to cart");
     }
   };
 
-  // === Bid Handler ===
   const handleBidClick = (product) => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
@@ -98,12 +236,17 @@ export default function Home() {
     const minBid = currentPrice ? currentPrice + 1 : 1;
 
     if (parseFloat(bidAmount) < minBid) {
-      toast.error(`Bid must be at least ₹${minBid.toLocaleString()}`);
+      toast.error(`Bid must be at least रु${minBid.toLocaleString()}`);
+      return;
+    }
+
+    if (balance?.balance < parseFloat(bidAmount)) {
+      toast.error(`Insufficient balance. Available: रु${balance?.balance?.toLocaleString() || 0}`);
       return;
     }
 
     try {
-      const response = await api.post(`/user/placeBid`, {
+      const response = await api.post(`/auction/placeBid`, {
         itemId: selectedProduct.itemId,
         bidAmount: parseFloat(bidAmount),
       });
@@ -113,42 +256,142 @@ export default function Home() {
         setShowBidModal(false);
         setBidAmount("");
         setSelectedProduct(null);
-        fetchProducts(currentPage);
-      } else toast.error(response.data.message || "Failed to place bid");
+      } else {
+        toast.error(response.data.message || "Failed to place bid");
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to place bid");
     }
   };
 
-  // === Register Handler ===
   const handleRegisterClick = async (product) => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
-      return;
+      return false;
     }
+    
     try {
-      const response = await api.post(`/user/registerForProduct`, {
+      const response = await api.post(`/auction/registerForProduct`, {
         itemId: product.itemId,
       });
 
       if (response.data.success) {
         toast.success("Registration successful!");
-        handleBuyNow(product, 1, product.amount);
-      } else toast.error(response.data.message || "Failed to register");
-    } catch {
-      toast.error("Failed to register for product");
+        
+        // Update the registered products set
+        setRegisteredProducts(prev => new Set([...prev, product.itemId]));
+        
+        return true;
+      } else {
+        // Check if already registered
+        if (response.data.message?.toLowerCase().includes('already registered')) {
+          toast.error("You're already registered for this auction");
+          // Update state to reflect registration
+          setRegisteredProducts(prev => new Set([...prev, product.itemId]));
+        } else {
+          toast.error(response.data.message || "Failed to register");
+        }
+        return false;
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || "Failed to register for product";
+      
+      // Check if already registered
+      if (errorMessage.toLowerCase().includes('already registered')) {
+        toast.error("You're already registered for this auction");
+        // Update state to reflect registration
+        setRegisteredProducts(prev => new Set([...prev, product.itemId]));
+      } else {
+        toast.error(errorMessage);
+      }
+      return false;
     }
   };
 
-  // === Product Click Handler ===
   const handleclick = (itemId) => navigate(`/productinfo/${itemId}`);
 
-  // === Auth Modal ===
+  // Apply filters - UPDATE URL WITH FILTER PARAMS
+  const applyFilters = () => {
+    const newParams = new URLSearchParams(searchParams);
+    
+    // Keep search if it exists
+    const currentSearch = searchParams.get('search');
+    if (currentSearch) {
+      newParams.set('search', currentSearch);
+    }
+    
+    // Update or remove filter params
+    if (filters.category) {
+      newParams.set('category', filters.category);
+    } else {
+      newParams.delete('category');
+    }
+    
+    if (filters.productType) {
+      newParams.set('product_type', filters.productType);
+    } else {
+      newParams.delete('product_type');
+    }
+    
+    if (filters.minPrice) {
+      newParams.set('minPrice', filters.minPrice);
+    } else {
+      newParams.delete('minPrice');
+    }
+    
+    if (filters.maxPrice) {
+      newParams.set('maxPrice', filters.maxPrice);
+    } else {
+      newParams.delete('maxPrice');
+    }
+    
+    if (filters.minRating) {
+      newParams.set('minRating', filters.minRating);
+    } else {
+      newParams.delete('minRating');
+    }
+    
+    if (filters.sortBy && filters.sortBy !== 'newest') {
+      newParams.set('sortBy', filters.sortBy);
+    } else {
+      newParams.delete('sortBy');
+    }
+    
+    // Update URL with new params
+    setSearchParams(newParams);
+    setCurrentPage(1);
+    setShowFilters(false);
+  };
+
+  // Clear filters - REMOVE ALL FILTER PARAMS FROM URL
+  const clearFilters = () => {
+    const newParams = new URLSearchParams();
+    
+    // Keep only search if it exists
+    const currentSearch = searchParams.get('search');
+    if (currentSearch) {
+      newParams.set('search', currentSearch);
+    }
+    
+    setFilters({
+      category: '',
+      productType: '',
+      minPrice: '',
+      maxPrice: '',
+      minRating: '',
+      sortBy: 'newest'
+    });
+    
+    setSearchParams(newParams);
+    setCurrentPage(1);
+    setShowFilters(false);
+  };
+
   const AuthModal = () => (
     <AnimatePresence>
       {showAuthModal && (
         <motion.div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -196,7 +439,6 @@ export default function Home() {
     </AnimatePresence>
   );
 
-  // === Pagination Component ===
   const PaginationControls = () => {
     const getPageNumbers = () => {
       const pages = [];
@@ -214,7 +456,7 @@ export default function Home() {
     };
 
     return (
-      <div className="flex justify-center items-center gap-3 mt-12 relative z-20">
+      <div className="flex justify-center items-center gap-3 mt-12 relative z-10">
         <button
           disabled={!pagination.hasPrevPage}
           onClick={() => handlePageChange(currentPage - 1)}
@@ -257,15 +499,39 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
-      <section className="py-20 px-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white pt-24">
+      {/* Socket Connection Status */}
+      {isAuthenticated && (
+        <div className="fixed top-20 right-4 z-[100]">
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg backdrop-blur-sm ${
+            connected ? 'bg-green-500/20 border border-green-500/50' : 'bg-red-500/20 border border-red-500/50'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'} ${connected ? 'animate-pulse' : ''}`} />
+            <span className="text-xs text-white font-medium">
+              {connected ? 'Live' : 'Disconnected'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <section className="py-8 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-3xl font-bold text-white">Featured Products</h3>
-            <p className="text-gray-400">
-              Page {currentPage} of {pagination.totalPages} ({pagination.totalCount} total
-              products)
-            </p>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h3 className="text-3xl font-bold text-white">
+                {searchParams.get('search') ? `Search Results for "${searchParams.get('search')}"` : 'Featured Products'}
+              </h3>
+              <p className="text-gray-400 mt-2">
+                Page {currentPage} of {pagination.totalPages} ({pagination.totalCount} total products)
+              </p>
+            </div>
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 transition-all duration-300 z-10"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+              <span className="font-medium">Filters</span>
+            </button>
           </div>
 
           {loading ? (
@@ -276,20 +542,33 @@ export default function Home() {
           ) : products.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
               <p className="text-xl">No products found.</p>
+              {(searchParams.get('search') || Object.values(filters).some(v => v && v !== 'newest')) && (
+                <button
+                  onClick={() => {
+                    navigate('/');
+                    clearFilters();
+                  }}
+                  className="mt-4 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                >
+                  Clear All Filters
+                </button>
+              )}
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12 relative z-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
                 {products.map((product) => (
-                  <ProductCard
-                    key={product.itemId}
-                    product={product}
-                    onBuyClick={handleBuyNow}
-                    onAddToCart={onAddToCart}
-                    onClick={handleclick}
-                    onBidClick={handleBidClick}
-                    onRegisterClick={handleRegisterClick}
-                  />
+                              <ProductCard
+                key={product.itemId}
+                product={product}
+                onBuyClick={handleBuyNow}
+                onAddToCart={onAddToCart}
+                onClick={handleclick}
+                onBidClick={handleBidClick}
+                onRegisterClick={handleRegisterClick}
+                isUserRegistered={product.isUserRegistered} // Changed from registeredProducts.has(product.itemId)
+              />
+
                 ))}
               </div>
               {pagination.totalPages > 1 && <PaginationControls />}
@@ -299,8 +578,16 @@ export default function Home() {
       </section>
 
       <AuthModal />
+      
+      <FilterModal
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
+        filters={filters}
+        setFilters={setFilters}
+        applyFilters={applyFilters}
+        clearFilters={clearFilters}
+      />
 
-      {/* Stable modal, no re-mount flicker */}
       <BidModal
         show={showBidModal}
         product={selectedProduct}

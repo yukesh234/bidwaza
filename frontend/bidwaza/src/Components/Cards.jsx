@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Calendar, ShoppingBag, ShoppingCart, Clock, Gavel, UserPlus, Timer } from "lucide-react";
+import { Calendar, ShoppingBag, ShoppingCart, Clock, Gavel, UserPlus, Timer, Star } from "lucide-react";
 
-const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick, onBidClick, onRegisterClick }) => {
+const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick, onBidClick, onRegisterClick, isUserRegistered = false }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [auctionStatus, setAuctionStatus] = useState('upcoming');
+  const [isRegistered, setIsRegistered] = useState(isUserRegistered);
 
   const primaryImage =
     product.images?.find((img) => img.isPrimary)?.url ||
@@ -19,6 +20,48 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
   });
 
   const getInitials = (name) => name?.charAt(0).toUpperCase() || "?";
+
+  // Render star rating
+  const renderStars = () => {
+    if (!product.rating?.average) return null;
+    
+    const rating = product.rating.average;
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+    return (
+      <div className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+        <div className="flex items-center">
+          {[...Array(fullStars)].map((_, i) => (
+            <Star key={`full-${i}`} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+          ))}
+          {hasHalfStar && (
+            <div className="relative">
+              <Star className="w-3 h-3 text-yellow-400" />
+              <div className="absolute inset-0 overflow-hidden w-1/2">
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+              </div>
+            </div>
+          )}
+          {[...Array(emptyStars)].map((_, i) => (
+            <Star key={`empty-${i}`} className="w-3 h-3 text-gray-400" />
+          ))}
+        </div>
+        <span className="text-xs text-yellow-400 font-semibold ml-1">
+          {rating.toFixed(1)}
+        </span>
+        <span className="text-xs text-gray-400">
+          ({product.rating.count})
+        </span>
+      </div>
+    );
+  };
+
+  // Update isRegistered when prop changes
+  useEffect(() => {
+    setIsRegistered(isUserRegistered);
+  }, [isUserRegistered]);
 
   useEffect(() => {
     if (product.productType === 'AUCTION' || product.productType === 'REGISTRATION') {
@@ -260,14 +303,14 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
           <div className="flex items-baseline gap-2">
             <span className="text-xs text-gray-400">Starting Price:</span>
             <span className="text-xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
-              ₹{startingPrice.toLocaleString()}
+              रु{startingPrice.toLocaleString()}
             </span>
           </div>
           {currentPrice > startingPrice && (
             <div className="flex items-baseline gap-2">
               <span className="text-xs text-gray-400">Current Bid:</span>
               <span className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                ₹{currentPrice.toLocaleString()}
+                रु{currentPrice.toLocaleString()}
               </span>
             </div>
           )}
@@ -277,7 +320,7 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
       return (
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            ₹{product.amount?.toLocaleString()}
+            रु{product.amount?.toLocaleString()}
           </span>
         </div>
       );
@@ -332,13 +375,27 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
           </motion.button>
         );
       } else if (auctionStatus === 'registration_open') {
+        if (isRegistered) {
+          return (
+            <motion.button
+              disabled
+              className="w-full mt-3 py-2.5 rounded-xl bg-green-500/20 border border-green-500/50 text-green-300 font-semibold cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <UserPlus size={18} />
+              <span>✓ Registered</span>
+            </motion.button>
+          );
+        }
         return (
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              onRegisterClick?.(product);
+              const success = await onRegisterClick?.(product);
+              if (success) {
+                setIsRegistered(true);
+              }
             }}
             className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center gap-2 group"
           >
@@ -347,13 +404,24 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
           </motion.button>
         );
       } else if (auctionStatus === 'registration_closed') {
+        if (isRegistered) {
+          return (
+            <motion.button
+              disabled
+              className="w-full mt-3 py-2.5 rounded-xl bg-green-500/20 border border-green-500/50 text-green-300 font-semibold cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <UserPlus size={18} />
+              <span>✓ Registered - Waiting for Auction</span>
+            </motion.button>
+          );
+        }
         return (
           <motion.button
             disabled
             className="w-full mt-3 py-2.5 rounded-xl bg-orange-500/20 border border-orange-500/50 text-orange-300 font-semibold cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Clock size={18} />
-            <span>Waiting for Auction</span>
+            <span>Registration Closed</span>
           </motion.button>
         );
       } else {
@@ -440,6 +508,18 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
             >
               {renderProductTypeInfo()}
             </motion.div>
+
+            {/* Rating Badge - Top Right */}
+            {product.rating?.average && (
+              <motion.div
+                className="absolute top-3 right-3"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.3, type: "spring" }}
+              >
+                {renderStars()}
+              </motion.div>
+            )}
 
             {product.stock !== undefined && product.productType === 'DIRECT_SELL' && (
               <motion.div

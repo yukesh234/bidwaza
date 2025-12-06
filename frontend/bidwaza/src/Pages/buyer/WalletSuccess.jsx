@@ -43,7 +43,9 @@ export default function WalletSuccess() {
   }, [searchParams]);
 
   const handleReturnHome = () => {
+ 
     navigate('/wallet');
+     window.location.reload();
   };
 
   // Loading State

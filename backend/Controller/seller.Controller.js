@@ -1,5 +1,5 @@
 import { getConnection } from '../Db/Db.js';
-import {uploadImage} from '../Service/cloudinary.js';
+import {uploadImage,deleteImage} from '../Service/cloudinary.js';
 import oracledb from 'oracledb';
 
 async function addProduct(req, res) {
@@ -291,72 +291,95 @@ async function getSellerProducts(req, res) {
   try {
     const sellerId = req.user.ID;
     
-    // Get pagination and filter params from query string
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const { category, product_type } = req.query;
+    const search = req.query.search || '';
+    const status = req.query.status || '';
+    const { category, product_type, includeDeleted } = req.query;
     
-    // Calculate offset
     const offset = (page - 1) * limit;
 
     connection = await getConnection();
 
-    // Build dynamic WHERE clause for filters
-    let whereClause = 'WHERE SELLER_ID = :sellerId';
+    // Build dynamic WHERE clause - exclude soft-deleted products by default
+    let whereClause = 'WHERE p.SELLER_ID = :sellerId';
+    
+    // Exclude soft-deleted products unless explicitly requested
+    if (includeDeleted !== 'true') {
+      whereClause += " AND p.STATUS != 'EXPIRED'";
+    }
+    
     const binds = { sellerId, offset, limit };
 
+    // Add search filter
+    if (search) {
+      whereClause += ' AND (LOWER(p.TITLE) LIKE :search OR LOWER(TO_CHAR(p.DESCRIPTION)) LIKE :search)';
+      binds.search = `%${search.toLowerCase()}%`;
+    }
+
+    // Add status filter
+    if (status && status !== 'all') {
+      whereClause += ' AND LOWER(p.STATUS) = :status';
+      binds.status = status.toLowerCase();
+    }
+
     if (category) {
-      whereClause += ' AND CATEGORY = :category';
+      whereClause += ' AND p.CATEGORY = :category';
       binds.category = category;
     }
 
     if (product_type) {
-      whereClause += ' AND PRODUCT_TYPE = :productType';
+      whereClause += ' AND p.PRODUCT_TYPE = :productType';
       binds.productType = product_type;
     }
 
-    // Main query with pagination
+    // Enhanced query with auction info
     const productsQuery = `
       SELECT 
-        ITEM_ID,
-        TITLE,
-        TO_CHAR(DESCRIPTION) as DESCRIPTION,
-        CATEGORY,
-        STOCK,
-        PRODUCT_TYPE,
-        AMOUNT,
-        CREATED_AT,
-        STATUS
-      FROM products 
+        p.ITEM_ID,
+        p.TITLE,
+        TO_CHAR(p.DESCRIPTION) as DESCRIPTION,
+        p.CATEGORY,
+        p.STOCK,
+        p.PRODUCT_TYPE,
+        p.AMOUNT,
+        p.STARTING_PRICE,
+        p.CURRENT_PRICE,
+        p.START_TIME,
+        p.END_TIME,
+        p.REGISTRATION_END,
+        p.CREATED_AT,
+        p.STATUS,
+        aw.winning_bid as WINNING_BID,
+        u.first_name || ' ' || u.last_name as WINNER_NAME,
+        (SELECT COUNT(*) FROM bids WHERE item_id = p.ITEM_ID) as TOTAL_BIDS
+      FROM products p
+      LEFT JOIN auction_winners aw ON p.ITEM_ID = aw.item_id
+      LEFT JOIN users u ON aw.user_id = u.id
       ${whereClause}
-      ORDER BY CREATED_AT DESC
+      ORDER BY p.CREATED_AT DESC
       OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
     `;
 
-    // Count query for total records
+    // Count query - use same filters but without pagination
+    const countBinds = { ...binds };
+    delete countBinds.offset;
+    delete countBinds.limit;
+
     const countQuery = `
-      SELECT COUNT(*) as TOTAL_COUNT
-      FROM products 
+      SELECT COUNT(DISTINCT p.ITEM_ID) as TOTAL_COUNT
+      FROM products p
+      LEFT JOIN auction_winners aw ON p.ITEM_ID = aw.item_id
+      LEFT JOIN users u ON aw.user_id = u.id
       ${whereClause}
     `;
 
-    // Execute both queries in parallel
     const [productsResult, countResult] = await Promise.all([
       connection.execute(productsQuery, binds, { outFormat: oracledb.OUT_FORMAT_OBJECT }),
-      connection.execute(countQuery, 
-        { sellerId, ...(category && { category }), ...(product_type && { productType: product_type }) },
-        { outFormat: oracledb.OUT_FORMAT_OBJECT }
-      )
+      connection.execute(countQuery, countBinds, { outFormat: oracledb.OUT_FORMAT_OBJECT })
     ]);
 
     const totalCount = countResult.rows[0]?.TOTAL_COUNT || 0;
-
-    console.log('=== PAGINATION INFO ===');
-    console.log('Page:', page);
-    console.log('Limit:', limit);
-    console.log('Offset:', offset);
-    console.log('Total Count:', totalCount);
-    console.log('Rows returned:', productsResult.rows.length);
 
     // Get images for each product
     const productsWithImages = await Promise.all(
@@ -379,8 +402,16 @@ async function getSellerProducts(req, res) {
             stock: product.STOCK,
             productType: product.PRODUCT_TYPE,
             amount: product.AMOUNT,
+            startingPrice: product.STARTING_PRICE,
+            currentPrice: product.CURRENT_PRICE,
+            startTime: product.START_TIME,
+            endTime: product.END_TIME,
+            registrationEnd: product.REGISTRATION_END,
             createdAt: product.CREATED_AT,
             status: product.STATUS,
+            winningBid: product.WINNING_BID,
+            winnerName: product.WINNER_NAME,
+            totalBids: product.TOTAL_BIDS,
             images: imagesResult.rows.map(img => ({
               url: img.IMAGE_URL,
               isPrimary: img.IS_PRIMARY === 'Y',
@@ -397,18 +428,27 @@ async function getSellerProducts(req, res) {
             stock: product.STOCK,
             productType: product.PRODUCT_TYPE,
             amount: product.AMOUNT,
+            startingPrice: product.STARTING_PRICE,
+            currentPrice: product.CURRENT_PRICE,
+            startTime: product.START_TIME,
+            endTime: product.END_TIME,
+            registrationEnd: product.REGISTRATION_END,
             createdAt: product.CREATED_AT,
+            status: product.STATUS,
+            winningBid: product.WINNING_BID,
+            winnerName: product.WINNER_NAME,
+            totalBids: product.TOTAL_BIDS,
             images: []
           };
         }
       })
     );
 
-    // Calculate pagination metadata
     const totalPages = Math.ceil(totalCount / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
 
+    // Response structure with nested data (matches your current frontend)
     res.status(200).json({
       success: true,
       message: "Products fetched successfully",
@@ -442,7 +482,6 @@ async function getSellerProducts(req, res) {
     }
   }
 }
-
 
 export async function getSellerOrders(req, res) {
   let connection;
@@ -490,7 +529,7 @@ export async function getSellerOrders(req, res) {
     // Get order items (only seller's items) with product details
     const ordersWithDetails = await Promise.all(
       ordersResult.rows.map(async (order) => {
-        // Get only items that belong to this seller
+        // Get only items that belong to this seller WITH REVIEWS
         const itemsResult = await connection.execute(
           `SELECT 
             oi.ORDER_ITEM_ID,
@@ -501,9 +540,15 @@ export async function getSellerOrders(req, res) {
             oi.SUBTOTAL,
             oi.CREATED_AT,
             p.STATUS as PRODUCT_STATUS,
-            p.STOCK as CURRENT_STOCK
+            p.STOCK as CURRENT_STOCK,
+            r.REVIEW_ID,
+            r.RATING,
+            DBMS_LOB.SUBSTR(r.REVIEW_TEXT, 4000, 1) as REVIEW_TEXT,
+            TO_CHAR(r.CREATED_AT, 'YYYY-MM-DD"T"HH24:MI:SS') as REVIEW_CREATED_AT,
+            TO_CHAR(r.UPDATED_AT, 'YYYY-MM-DD"T"HH24:MI:SS') as REVIEW_UPDATED_AT
           FROM order_items oi
           LEFT JOIN products p ON oi.ITEM_ID = p.ITEM_ID
+          LEFT JOIN ratings_reviews r ON oi.ORDER_ITEM_ID = r.ORDER_ITEM_ID
           WHERE oi.ORDER_ID = :orderId AND oi.SELLER_ID = :sellerId
           ORDER BY oi.CREATED_AT`,
           { orderId: order.ORDER_ID, sellerId },
@@ -535,7 +580,14 @@ export async function getSellerOrders(req, res) {
                 subtotal: item.SUBTOTAL,
                 primaryImage: primaryImage,
                 productStatus: item.PRODUCT_STATUS,
-                currentStock: item.CURRENT_STOCK
+                currentStock: item.CURRENT_STOCK,
+                review: item.REVIEW_ID ? {
+                  reviewId: parseInt(item.REVIEW_ID),
+                  rating: parseInt(item.RATING),
+                  reviewText: item.REVIEW_TEXT ? (item.REVIEW_TEXT + '') : null,
+                  createdAt: item.REVIEW_CREATED_AT ? item.REVIEW_CREATED_AT + '' : null,
+                  updatedAt: item.REVIEW_UPDATED_AT ? item.REVIEW_UPDATED_AT + '' : null
+                } : null
               };
             } catch (imageError) {
               console.error('Error fetching images for item:', item.ITEM_ID, imageError);
@@ -548,7 +600,14 @@ export async function getSellerOrders(req, res) {
                 subtotal: item.SUBTOTAL,
                 primaryImage: null,
                 productStatus: item.PRODUCT_STATUS,
-                currentStock: item.CURRENT_STOCK
+                currentStock: item.CURRENT_STOCK,
+                review: item.REVIEW_ID ? {
+                  reviewId: parseInt(item.REVIEW_ID),
+                  rating: parseInt(item.RATING),
+                  reviewText: item.REVIEW_TEXT ? (item.REVIEW_TEXT + '') : null,
+                  createdAt: item.REVIEW_CREATED_AT ? item.REVIEW_CREATED_AT + '' : null,
+                  updatedAt: item.REVIEW_UPDATED_AT ? item.REVIEW_UPDATED_AT + '' : null
+                } : null
               };
             }
           })
@@ -910,14 +969,12 @@ export async function updateStatus(req, res) {
   }
 }
 
-
 export async function sellerstats(req, res) {
   const userId = req.user.ID;
   let connection;
-
   try {
     connection = await getConnection();
-
+    
     // Query 1: Total Listings
     const totalListings = await connection.execute(
       `SELECT COUNT(*) AS totalListings 
@@ -925,7 +982,7 @@ export async function sellerstats(req, res) {
        WHERE seller_id = :userId`,
       [userId]
     );
-
+    
     // Query 2: Active Auctions
     const activeAuctions = await connection.execute(
       `SELECT COUNT(*) AS activeAuctions 
@@ -933,7 +990,7 @@ export async function sellerstats(req, res) {
        WHERE seller_id = :userId AND status = 'ACTIVE'`,
       [userId]
     );
-
+    
     // Query 3: Sold Items
     const soldItems = await connection.execute(
       `SELECT COUNT(DISTINCT oi.item_id) AS soldItems 
@@ -942,7 +999,7 @@ export async function sellerstats(req, res) {
        WHERE oi.seller_id = :userId AND o.order_status = 'COMPLETED'`,
       [userId]
     );
-
+    
     // Query 4: Total Earnings
     const totalEarnings = await connection.execute(
       `SELECT NVL(SUM(oi.subtotal), 0) AS totalEarnings
@@ -951,7 +1008,7 @@ export async function sellerstats(req, res) {
        WHERE oi.seller_id = :userId AND o.order_status = 'COMPLETED'`,
       [userId]
     );
-
+    
     // Query 5: Average Sale Price
     const avgSalePrice = await connection.execute(
       `SELECT NVL(AVG(oi.price_at_purchase), 0) AS avgSalePrice
@@ -960,7 +1017,7 @@ export async function sellerstats(req, res) {
        WHERE oi.seller_id = :userId AND o.order_status = 'COMPLETED'`,
       [userId]
     );
-
+    
     // Query 6: Success Rate
     const successRate = await connection.execute(
       `SELECT 
@@ -973,7 +1030,18 @@ export async function sellerstats(req, res) {
        WHERE oi.seller_id = :userId`,
       [userId]
     );
-
+    
+    // Query 7: Seller Average Rating and Review Count
+    const sellerRating = await connection.execute(
+      `SELECT 
+         ROUND(AVG(rr.RATING), 1) AS avgRating,
+         COUNT(rr.REVIEW_ID) AS reviewCount
+       FROM ratings_reviews rr
+       JOIN products p ON rr.PRODUCT_ID = p.ITEM_ID
+       WHERE p.SELLER_ID = :userId`,
+      [userId]
+    );
+    
     // Extract values - data is in array format [ [ value ] ]
     const stats = {
       totalListings: totalListings.rows[0]?.[0] || 0,
@@ -982,14 +1050,18 @@ export async function sellerstats(req, res) {
       totalEarnings: totalEarnings.rows[0]?.[0] || 0,
       avgSalePrice: avgSalePrice.rows[0]?.[0] || 0,
       successRate: successRate.rows[0]?.[0] || 0,
-      rating: 0
+      rating: {
+        average: sellerRating.rows[0]?.[0] || 0,
+        count: sellerRating.rows[0]?.[1] || 0
+      }
     };
-
+    
     res.json({
       success: true,
       message: "Seller statistics fetched successfully",
       data: stats
     });
+    
   } catch (error) {
     console.error("Error fetching seller stats:", error);
     res.status(500).json({
@@ -1007,6 +1079,490 @@ export async function sellerstats(req, res) {
     }
   }
 }
+
+export async function editProduct(req, res) {
+  let connection;
+  try {
+    console.log("req.body:", req.body);
+    console.log("req.files:", req.files);
+    connection = await getConnection();
+    const { ProductId } = req.params;
+    const userId = req.user.ID;
+    
+    // Parse body data
+    let formData = req.body.formData;
+    let deletedImageUrls = req.body.deletedImageUrls || [];
+
+    if (typeof formData === 'string') {
+      formData = JSON.parse(formData);
+    }
+    if (typeof deletedImageUrls === 'string') {
+      deletedImageUrls = JSON.parse(deletedImageUrls);
+    }
+
+    const newFiles = req.files || [];
+
+    // Validation
+    if (!ProductId) {
+      return res.status(400).json({
+        success: false,
+        message: "ProductId is required"
+      });
+    }
+
+    if (!formData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid form data'
+      });
+    }
+
+    // Validate required fields
+    if (!formData.title?.trim() || !formData.description?.trim() || 
+        !formData.category || !formData.product_type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: title, description, category, product_type'
+      });
+    }
+
+    // Check product ownership and status
+    const ownerCheckQuery = `
+      SELECT SELLER_ID, PRODUCT_TYPE, STATUS FROM PRODUCTS WHERE ITEM_ID = :itemId
+    `;
+    
+    const ownerCheckResult = await connection.execute(ownerCheckQuery, [ProductId]);
+    
+    if (ownerCheckResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    const [product] = ownerCheckResult.rows;
+    const [sellerId, productType, status] = product;
+
+    if (sellerId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: You can only edit your own products'
+      });
+    }
+
+    if (status === 'SOLD' || status === 'COMPLETED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot edit completed or sold products'
+      });
+    }
+
+    // Step 1: Delete images from Cloudinary and database
+    if (deletedImageUrls && deletedImageUrls.length > 0) {
+      for (const url of deletedImageUrls) {
+        try {
+          await deleteImage(url);
+        } catch (err) {
+          console.error(`Failed to delete image ${url}:`, err);
+        }
+      }
+
+      if (deletedImageUrls.length > 0) {
+        const placeholders = deletedImageUrls.map((_, i) => `:url${i}`).join(',');
+        const deleteImagesQuery = `
+          DELETE FROM PRODUCT_IMAGES 
+          WHERE ITEM_ID = :itemId AND IMAGE_URL IN (${placeholders})
+        `;
+
+        const deleteParams = { itemId: ProductId };
+        deletedImageUrls.forEach((url, i) => {
+          deleteParams[`url${i}`] = url;
+        });
+
+        await connection.execute(deleteImagesQuery, deleteParams);
+      }
+    }
+
+    // Step 2: Upload new images to Cloudinary
+    const uploadedImageUrls = [];
+    if (newFiles && newFiles.length > 0) {
+      // Upload images using the same method as addProduct
+      const uploadResults = await Promise.all(
+        newFiles.map(file => uploadImage(file?.path))
+      );
+
+      const validUrls = uploadResults.filter(url => url && typeof url === 'string');
+      uploadedImageUrls.push(...validUrls);
+
+      if (validUrls.length > 0) {
+        console.log('Uploaded image URLs:', validUrls);
+      }
+    }
+
+    // Step 3: Insert new images into database
+    if (uploadedImageUrls.length > 0) {
+      // Get max display order
+      const getMaxOrderQuery = `
+        SELECT NVL(MAX(DISPLAY_ORDER), 0) as maxOrder FROM PRODUCT_IMAGES WHERE ITEM_ID = :itemId
+      `;
+      
+      const orderResult = await connection.execute(getMaxOrderQuery, [ProductId]);
+      let displayOrder = (orderResult.rows[0]?.[0] || 0) + 1;
+
+      // Insert each image - FIXED: Use image_seq instead of product_images_seq
+      for (const imageUrl of uploadedImageUrls) {
+        const insertImageQuery = `
+          INSERT INTO PRODUCT_IMAGES (IMAGE_ID, ITEM_ID, IMAGE_URL, DISPLAY_ORDER, IS_PRIMARY)
+          VALUES (image_seq.NEXTVAL, :itemId, :imageUrl, :displayOrder, 'N')
+        `;
+
+        await connection.execute(insertImageQuery, {
+          itemId: ProductId,
+          imageUrl: imageUrl,
+          displayOrder: displayOrder++
+        }, { autoCommit: false });
+      }
+    }
+
+    // Step 4: Update product fields
+    const updateFields = [];
+    const updateParams = { itemId: ProductId };
+
+    if (formData.title !== undefined) {
+      updateFields.push('TITLE = :title');
+      updateParams.title = formData.title.trim();
+    }
+    if (formData.description !== undefined) {
+      updateFields.push('DESCRIPTION = :description');
+      updateParams.description = formData.description.trim();
+    }
+    if (formData.category !== undefined) {
+      updateFields.push('CATEGORY = :category');
+      updateParams.category = formData.category;
+    }
+    if (formData.stock !== undefined) {
+      updateFields.push('STOCK = :stock');
+      updateParams.stock = parseInt(formData.stock) || 1;
+    }
+    if (formData.amount !== undefined) {
+      updateFields.push('AMOUNT = :amount');
+      updateParams.amount = parseFloat(formData.amount) || 0;
+    }
+    if (formData.starting_price !== undefined && formData.starting_price !== '') {
+      updateFields.push('STARTING_PRICE = :startingPrice');
+      updateParams.startingPrice = parseFloat(formData.starting_price);
+    }
+    if (formData.start_time !== undefined && formData.start_time !== '') {
+      updateFields.push('START_TIME = TO_TIMESTAMP(:startTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+      updateParams.startTime = formData.start_time;
+    }
+    if (formData.end_time !== undefined && formData.end_time !== '') {
+      updateFields.push('END_TIME = TO_TIMESTAMP(:endTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+      updateParams.endTime = formData.end_time;
+    }
+    if (formData.registration_end !== undefined && formData.registration_end !== '') {
+      updateFields.push('REGISTRATION_END = TO_TIMESTAMP(:registrationEnd, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+      updateParams.registrationEnd = formData.registration_end;
+    }
+
+    // Always update UPDATED_AT
+    updateFields.push('UPDATED_AT = SYSTIMESTAMP');
+
+    if (updateFields.length === 1) { // Only UPDATED_AT
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update'
+      });
+    }
+
+    const updateQuery = `UPDATE PRODUCTS SET ${updateFields.join(', ')} WHERE ITEM_ID = :itemId`;
+    const updateResult = await connection.execute(updateQuery, updateParams, { autoCommit: false });
+
+    if (updateResult.rowsAffected === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to update product'
+      });
+    }
+
+    // Commit all changes
+    await connection.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Product updated successfully',
+      data: {
+        productId: ProductId,
+        uploadedImages: uploadedImageUrls.length,
+        deletedImages: deletedImageUrls.length,
+        updatedFields: updateFields.length - 1
+      }
+    });
+
+  } catch (error) {
+    // Rollback on error
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackErr) {
+        console.error('Rollback error:', rollbackErr);
+      }
+    }
+
+    console.error('Edit product error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update product'
+    });
+
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error('Connection close error:', closeErr);
+      }
+    }
+  }
+}
+
+// export async function deleteProduct(req, res) {
+//   let connection;
+//   try {
+//     const { productId } = req.params;
+//     const userId = req.user.ID;
+    
+//     if (!productId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "ProductId is required",
+//       });
+//     }
+    
+//     connection = await getConnection();
+    
+//     // First, verify the product exists and belongs to the seller
+//     const verifyQuery = `
+//       SELECT ITEM_ID, STATUS, SELLER_ID 
+//       FROM products 
+//       WHERE ITEM_ID = :productId
+//     `;
+
+//     const verifyResult = await connection.execute(
+//       verifyQuery,
+//       { productId },
+//       { outFormat: oracledb.OUT_FORMAT_OBJECT }
+//     );
+
+//     // Check if product exists
+//     if (verifyResult.rows.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Product not found"
+//       });
+//     }
+
+//     const product = verifyResult.rows[0];
+
+//     // Check if the product belongs to the seller (FIXED: changed sellerId to userId)
+//     if (product.SELLER_ID !== userId) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "You are not authorized to delete this product"
+//       });
+//     }
+
+//     // Check if already deleted
+//     if (product.STATUS === 'EXPIRED') {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Product is already deleted"
+//       });
+//     }
+    
+//     // Perform soft delete
+//     const deleteQuery = `
+//       UPDATE products 
+//       SET STATUS = 'EXPIRED',
+//           UPDATED_AT = SYSTIMESTAMP
+//       WHERE ITEM_ID = :productId
+//     `;
+
+//     const deleteResult = await connection.execute(
+//       deleteQuery,
+//       { productId },
+//       { autoCommit: true }
+//     );
+
+//     // Check if update was successful
+//     if (deleteResult.rowsAffected === 0) {
+//       return res.status(500).json({
+//         success: false,
+//         message: "Failed to delete product"
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Product deleted successfully",
+//       data: {
+//         productId: parseInt(productId)
+//       }
+//     });
+    
+//   } catch (error) {
+//     console.error('Delete product error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to delete product",
+//       error: error.message
+//     });
+//   } finally {
+//     if (connection) {
+//       try {
+//         await connection.close();
+//       } catch (closeError) {
+//         console.error('Connection close error:', closeError);
+//       }
+//     }
+//   }
+// }
+
+export async function deleteProduct(req, res) {
+  let connection;
+  try {
+    const { productId } = req.params;
+    const userId = req.user.ID;
+    
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: "ProductId is required",
+      });
+    }
+    
+    connection = await getConnection();
+    
+    // First, verify the product exists and belongs to the seller
+    const verifyQuery = `
+      SELECT ITEM_ID, STATUS, SELLER_ID 
+      FROM products 
+      WHERE ITEM_ID = :productId
+    `;
+
+    const verifyResult = await connection.execute(
+      verifyQuery,
+      { productId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    // Check if product exists
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    const product = verifyResult.rows[0];
+
+    // Check if the product belongs to the seller
+    if (product.SELLER_ID !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to delete this product"
+      });
+    }
+
+    // Check if already deleted
+    if (product.STATUS === 'EXPIRED') {
+      return res.status(400).json({
+        success: false,
+        message: "Product is already deleted"
+      });
+    }
+    
+    // Perform soft delete and remove from all carts in a transaction
+    const deleteQuery = `
+      UPDATE products 
+      SET STATUS = 'EXPIRED',
+          UPDATED_AT = SYSTIMESTAMP
+      WHERE ITEM_ID = :productId
+    `;
+
+    const deleteFromCartsQuery = `
+      DELETE FROM cart_items
+      WHERE ITEM_ID = :productId
+    `;
+
+    // Execute both queries
+    const deleteResult = await connection.execute(
+      deleteQuery,
+      { productId },
+      { autoCommit: false } // Don't auto-commit yet
+    );
+
+    // Remove product from all user carts
+    const cartDeleteResult = await connection.execute(
+      deleteFromCartsQuery,
+      { productId },
+      { autoCommit: false }
+    );
+
+    // Commit the transaction
+    await connection.commit();
+
+    // Check if update was successful
+    if (deleteResult.rowsAffected === 0) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to delete product"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Product deleted successfully",
+      data: {
+        productId: parseInt(productId),
+        removedFromCarts: cartDeleteResult.rowsAffected || 0
+      }
+    });
+    
+  } catch (error) {
+    // Rollback on error
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error('Rollback error:', rollbackError);
+      }
+    }
+    
+    console.error('Delete product error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete product",
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeError) {
+        console.error('Connection close error:', closeError);
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
 
 
 

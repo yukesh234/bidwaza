@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { getCart, removefromCart, updateCartItemQuantity } from "../../services/userservices.js"
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
-import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Package, MoveLeft } from 'lucide-react'
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Package, MoveLeft, AlertCircle } from 'lucide-react'
 import {NavLink, useNavigate} from 'react-router-dom'
 import {usePayment} from '../../hooks/usePayment.js'
 
@@ -117,6 +117,32 @@ function Cart() {
     console.log("Remove item:", cartItemId)
   }
 
+  // NEW: Filter available items (in stock) and out of stock items
+  const availableItems = cartItems.filter(item => item.stock > 0)
+  const outOfStockItems = cartItems.filter(item => item.stock === 0)
+
+  // NEW: Calculate summary for available items only
+  const availableSummary = {
+    totalAmount: availableItems.reduce((sum, item) => sum + item.subtotal, 0),
+    totalItems: availableItems.reduce((sum, item) => sum + item.quantity, 0),
+    itemCount: availableItems.length
+  }
+
+  // NEW: Handle checkout with only available items
+  const handleCheckout = () => {
+    console.log("Handling checkout for available items:", availableItems)
+    if (availableItems.length === 0) {
+      toast.error("No items available for checkout")
+      return
+    }
+    
+    if (outOfStockItems.length > 0) {
+      toast.success(`${outOfStockItems.length} out of stock item(s) will not be included`)
+    }
+    
+    handleCartCheckout(availableItems, availableSummary)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-800 via-teal-800 to-slate-900 flex items-center justify-center">
@@ -173,7 +199,27 @@ function Cart() {
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4">
-              {cartItems.map((item) => (
+              {/* NEW: Out of Stock Warning */}
+              {outOfStockItems.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-orange-500/20 backdrop-blur-md rounded-xl p-4 border border-orange-500/30 flex items-start gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-orange-300 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-orange-200 font-semibold">
+                      {outOfStockItems.length} item(s) out of stock
+                    </p>
+                    <p className="text-orange-200/80 text-sm">
+                      These items won't be included in checkout
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Available Items */}
+              {availableItems.map((item) => (
                 <motion.div
                   key={item.cartItemId}
                   initial={{ opacity: 0, y: 20 }}
@@ -236,8 +282,65 @@ function Cart() {
 
                         {/* Price */}
                         <div className="text-right">
-                          <p className="text-white/60 text-sm">₹{item.price} each</p>
-                          <p className="text-2xl font-bold text-white">₹{item.subtotal.toLocaleString()}</p>
+                          <p className="text-white/60 text-sm">रु{item.price} each</p>
+                          <p className="text-2xl font-bold text-white">रु{item.subtotal.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+              {/* NEW: Out of Stock Items */}
+              {outOfStockItems.map((item) => (
+                <motion.div
+                  key={item.cartItemId}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-red-500/30 relative"
+                >
+                  {/* Out of Stock Badge */}
+                  <div className="absolute top-4 right-4 z-10">
+                    <span className="px-4 py-2 bg-red-500/90 text-white font-bold rounded-lg text-sm">
+                      OUT OF STOCK
+                    </span>
+                  </div>
+
+                  <div className="flex gap-6 opacity-60">
+                    <div className="flex-shrink-0">
+                      <img
+                        src={item.primaryImage}
+                        alt={item.title}
+                        className="w-32 h-32 rounded-xl object-cover grayscale"
+                      />
+                      <span className="inline-block mt-2 px-3 py-1 bg-gray-500/20 text-gray-400 text-xs font-semibold rounded-full">
+                        {item.category}
+                      </span>
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="text-xl font-bold text-white/70 mb-1">{item.title}</h3>
+                          <p className="text-white/50 text-sm mb-2">{item.description}</p>
+                          <p className="text-white/60 text-sm">
+                            Sold by: <span className="text-cyan-300/70 font-semibold">{item?.seller?.name}</span>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => removeItem(item.cartItemId)}
+                          className="p-2 hover:bg-red-500/20 rounded-lg transition-colors group"
+                        >
+                          <Trash2 className="w-5 h-5 text-white/60 group-hover:text-red-400" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="text-red-400 font-semibold">
+                          This item is currently unavailable
+                        </div>
+                        <div className="text-right">
+                          <p className="text-white/50 text-sm line-through">रु{item.price}</p>
                         </div>
                       </div>
                     </div>
@@ -256,28 +359,39 @@ function Cart() {
                 <h2 className="text-2xl font-bold text-white mb-6">Order Summary</h2>
 
                 <div className="space-y-4 mb-6">
+                  {/* NEW: Show available items summary */}
                   <div className="flex justify-between text-white/80">
-                    <span>Subtotal ({summary.totalItems} items)</span>
-                    <span>₹{summary.totalAmount?.toLocaleString()}</span>
+                    <span>Available Items ({availableSummary.totalItems})</span>
+                    <span>रु{availableSummary.totalAmount?.toLocaleString()}</span>
                   </div>
-                 
+                  
+                  {/* NEW: Show out of stock items info */}
+                  {outOfStockItems.length > 0 && (
+                    <div className="flex justify-between text-red-400/80 text-sm">
+                      <span>Out of Stock ({outOfStockItems.length})</span>
+                      <span>Not included</span>
+                    </div>
+                  )}
                   
                   <div className="border-t border-white/20 pt-4">
                     <div className="flex justify-between items-center">
                       <span className="text-xl font-bold text-white">Total</span>
                       <span className="text-2xl font-bold text-white">
-                        ₹{(summary.totalAmount ).toLocaleString()}
+                        रु{availableSummary.totalAmount?.toLocaleString()}
                       </span>
                     </div>
                   </div>
                 </div>
 
+               {/* MODIFIED: Use new handleCheckout function */}
                <button 
-                  className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-4"
-                  onClick={() => handleCartCheckout(cartItems, summary)}
-                  disabled={cartItems.length === 0}
+                  className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 mb-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleCheckout}
+                  disabled={availableItems.length === 0}
                 >
-                  Proceed to Checkout
+                  Proceed to Checkout ({
+                  
+                  availableItems.length})
                   <ArrowRight className="w-5 h-5" />
                 </button>
                 <button

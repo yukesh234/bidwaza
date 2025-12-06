@@ -12,13 +12,16 @@ function PerformanceMetrics({ stats }) {
             <span className="text-green-400 font-semibold">{stats?.successRate}%</span>
           </div>
           <div className="w-full bg-white/20 rounded-full h-2">
-            <div className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all" style={{ width: `${stats?.successRate}%` }} />
+            <div 
+              className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all" 
+              style={{ width: `${stats?.successRate}%` }} 
+            />
           </div>
         </div>
         <div>
           <div className="flex justify-between mb-2">
             <span className="text-white/80">Average Sale Price</span>
-            <span className="text-cyan-400 font-semibold">${stats?.avgSalePrice}</span>
+            <span className="text-cyan-400 font-semibold">रु{Math.floor(stats?.avgSalePrice)}</span>
           </div>
           <div className="w-full bg-white/20 rounded-full h-2">
             <div className="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full w-3/4" />
@@ -27,25 +30,30 @@ function PerformanceMetrics({ stats }) {
         <div>
           <div className="flex justify-between mb-2">
             <span className="text-white/80">Customer Satisfaction</span>
-            <span className="text-yellow-400 font-semibold">{stats?.rating}/5</span>
+            <span className="text-yellow-400 font-semibold">
+              {stats?.rating?.average || 0}/5
+            </span>
           </div>
           <div className="flex gap-1 items-center">
             {[...Array(5)].map((_, i) => (
               <Star
                 key={i}
                 className={`w-5 h-5 ${
-                  i < Math.floor(stats?.rating)
+                  i < Math.floor(stats?.rating?.average || 0)
                     ? 'text-yellow-400 fill-yellow-400'
                     : 'text-white/20'
                 }`}
               />
             ))}
-            <span className="text-white/60 text-sm ml-2">({stats?.reviews} reviews)</span>
+            <span className="text-white/60 text-sm ml-2">
+              ({stats?.rating?.count || 0} reviews)
+            </span>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
+
 
 export default PerformanceMetrics

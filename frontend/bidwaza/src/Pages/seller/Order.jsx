@@ -101,7 +101,7 @@ function Order() {
             <span>{orders.length} {orders.length === 1 ? 'order' : 'orders'}</span>
             <span className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-emerald-400" />
-              Total Revenue: ₹{totalRevenue.toLocaleString()}
+              Total Revenue: रु{totalRevenue.toLocaleString()}
             </span>
           </div>
         </motion.div>
