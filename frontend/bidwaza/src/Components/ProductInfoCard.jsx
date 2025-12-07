@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, ShoppingBag, ChevronLeft, ChevronRight, User, Package, Clock, Tag, MoveLeft, Gavel, UserPlus, Timer, TrendingUp } from 'lucide-react';
-import { useNavigate, NavLink } from 'react-router-dom';
-import ProductReviews from './buyer/ProductReviews.jsx';
-import SellerBadge from './buyer/Sellerbadge.jsx';
-function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegisterClick }) {
+import { ShoppingCart, ShoppingBag, ChevronLeft, ChevronRight, User, Package, Clock, MoveLeft, Gavel, UserPlus, Timer, TrendingUp, Zap } from 'lucide-react';
+
+function ProductInfoCard({ 
+  product, 
+  onAddToCart, 
+  onBuyNow, 
+  onBidClick, 
+  onRegisterClick,
+  onAutoBidClick,
+  autoBidActive = false,
+  onCancelAutoBid
+}) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [auctionStatus, setAuctionStatus] = useState('upcoming');
-  const navigate = useNavigate();
 
   if (!product) return null;
 
@@ -24,11 +30,8 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
     images = [],
     productType,
     auctionDetails,
-    reviews = [],
-    ratingStats = {}
   } = product;
 
-  // Extract auction details
   const startingPrice = auctionDetails?.startingPrice;
   const currentPrice = auctionDetails?.currentPrice;
   const startTime = auctionDetails?.startTime;
@@ -36,9 +39,8 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
   const registrationEnd = auctionDetails?.registrationEnd;
   const bidCount = auctionDetails?.bidCount || 0;
   const highestBid = auctionDetails?.highestBid;
-   console.table([startingPrice, currentPrice, startTime, endTime, registrationEnd]);
+
   const sortedImages = [...images].sort((a, b) => (a?.displayOrder || 0) - (b?.displayOrder || 0));
-  //  console.log("product deatils received:", product);
 
   useEffect(() => {
     if (productType === 'AUCTION' || productType === 'REGISTRATION') {
@@ -63,11 +65,23 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
           }
         } else if (productType === 'REGISTRATION') {
           const regEnd = new Date(registrationEnd).getTime();
+          const start = new Date(startTime).getTime();
+          const end = new Date(endTime).getTime();
           
           if (now < regEnd) {
+            setAuctionStatus('registration_open');
             const distance = regEnd - now;
             updateTimeLeft(distance);
+          } else if (now >= regEnd && now < start) {
+            setAuctionStatus('registration_closed');
+            const distance = start - now;
+            updateTimeLeft(distance);
+          } else if (now >= start && now < end) {
+            setAuctionStatus('live');
+            const distance = end - now;
+            updateTimeLeft(distance);
           } else {
+            setAuctionStatus('ended');
             setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
           }
         }
@@ -95,10 +109,6 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
     setCurrentImageIndex((prev) => (prev - 1 + sortedImages.length) % sortedImages.length);
   };
 
-  const handleSellerClick = () => {
-    if (seller?.sellerId) navigate(`/sellerpage/${seller.sellerId}`);
-  };
-
   const formatDate = (date) => {
     if (!date) return "Unknown date";
     return new Date(date).toLocaleDateString('en-US', { 
@@ -112,7 +122,7 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
     switch (productType) {
       case 'AUCTION':
         return (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <div className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-full shadow-lg flex items-center gap-2">
               <Gavel className="w-4 h-4" />
               <span className="font-semibold">Auction</span>
@@ -123,19 +133,41 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
                 <span className="font-semibold">LIVE</span>
               </div>
             )}
+            {autoBidActive && auctionStatus === 'live' && (
+              <motion.div
+                className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black rounded-full shadow-lg flex items-center gap-2 font-bold"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15 }}
+              >
+                <Zap className="w-4 h-4 animate-pulse" />
+                <span>AUTO-BID</span>
+              </motion.div>
+            )}
           </div>
         );
       case 'REGISTRATION':
-        const now = new Date().getTime();
-        const regEnd = new Date(registrationEnd).getTime();
-        console.log(registrationEnd)
-       
-        // console.log("registrationEnd:", registrationEnd, "now:", now, "regEnd:", regEnd);
-        const isOpen = now < regEnd;
         return (
-          <div className={`px-4 py-2 bg-gradient-to-r ${isOpen ? 'from-green-500 to-emerald-600' : 'from-gray-500 to-gray-600'} text-white rounded-full shadow-lg flex items-center gap-2`}>
-            <UserPlus className="w-4 h-4" />
-            <span className="font-semibold">{isOpen ? 'Registration Open' : 'Registration Closed'}</span>
+          <div className="flex flex-wrap gap-2">
+            <div className={`px-4 py-2 bg-gradient-to-r ${auctionStatus === 'registration_open' ? 'from-green-500 to-emerald-600' : 'from-gray-500 to-gray-600'} text-white rounded-full shadow-lg flex items-center gap-2`}>
+              <UserPlus className="w-4 h-4" />
+              <span className="font-semibold">
+                {auctionStatus === 'registration_open' ? 'Registration Open' : 
+                 auctionStatus === 'registration_closed' ? 'Registration Closed' : 
+                 auctionStatus === 'live' ? 'Live Auction' : 'Auction Ended'}
+              </span>
+            </div>
+            {autoBidActive && auctionStatus === 'live' && (
+              <motion.div
+                className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-black rounded-full shadow-lg flex items-center gap-2 font-bold"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15 }}
+              >
+                <Zap className="w-4 h-4 animate-pulse" />
+                <span>AUTO-BID</span>
+              </motion.div>
+            )}
           </div>
         );
       default:
@@ -174,31 +206,26 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
             </h3>
           </div>
           <div className="grid grid-cols-4 gap-4">
-            <div className="bg-white/10 rounded-xl p-4 text-center">
-              <div className="text-3xl font-bold text-white">{timeLeft.days}</div>
-              <div className="text-sm text-gray-300 mt-1">Days</div>
-            </div>
-            <div className="bg-white/10 rounded-xl p-4 text-center">
-              <div className="text-3xl font-bold text-white">{timeLeft.hours}</div>
-              <div className="text-sm text-gray-300 mt-1">Hours</div>
-            </div>
-            <div className="bg-white/10 rounded-xl p-4 text-center">
-              <div className="text-3xl font-bold text-white">{timeLeft.minutes}</div>
-              <div className="text-sm text-gray-300 mt-1">Minutes</div>
-            </div>
-            <div className="bg-white/10 rounded-xl p-4 text-center">
-              <div className="text-3xl font-bold text-white">{timeLeft.seconds}</div>
-              <div className="text-sm text-gray-300 mt-1">Seconds</div>
-            </div>
+            {['days', 'hours', 'minutes', 'seconds'].map((unit) => (
+              <div key={unit} className="bg-white/10 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-white">{timeLeft[unit]}</div>
+                <div className="text-sm text-gray-300 mt-1 capitalize">{unit}</div>
+              </div>
+            ))}
           </div>
         </div>
       );
     } else if (productType === 'REGISTRATION') {
-      const now = new Date().getTime();
-      const regEnd = new Date(registrationEnd).getTime();
-      const isOpen = now < regEnd;
+      if (auctionStatus === 'ended') {
+        return (
+          <div className="bg-red-500/20 border border-red-500/50 rounded-2xl p-6">
+            <h3 className="text-xl font-bold text-red-300 mb-2">Auction Ended</h3>
+            <p className="text-red-200">This auction has concluded</p>
+          </div>
+        );
+      }
 
-      if (isOpen) {
+      if (auctionStatus === 'registration_open') {
         return (
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/50 rounded-2xl p-6 backdrop-blur-md">
             <div className="flex items-center gap-2 mb-4">
@@ -206,22 +233,46 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
               <h3 className="text-xl font-bold text-white">Registration Closes In</h3>
             </div>
             <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-white">{timeLeft.days}</div>
-                <div className="text-sm text-gray-300 mt-1">Days</div>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-white">{timeLeft.hours}</div>
-                <div className="text-sm text-gray-300 mt-1">Hours</div>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-white">{timeLeft.minutes}</div>
-                <div className="text-sm text-gray-300 mt-1">Minutes</div>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-white">{timeLeft.seconds}</div>
-                <div className="text-sm text-gray-300 mt-1">Seconds</div>
-              </div>
+              {['days', 'hours', 'minutes', 'seconds'].map((unit) => (
+                <div key={unit} className="bg-white/10 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-white">{timeLeft[unit]}</div>
+                  <div className="text-sm text-gray-300 mt-1 capitalize">{unit}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      } else if (auctionStatus === 'registration_closed') {
+        return (
+          <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/50 rounded-2xl p-6 backdrop-blur-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="w-5 h-5 text-orange-300" />
+              <h3 className="text-xl font-bold text-white">Auction Starts In</h3>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              {['days', 'hours', 'minutes', 'seconds'].map((unit) => (
+                <div key={unit} className="bg-white/10 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-white">{timeLeft[unit]}</div>
+                  <div className="text-sm text-gray-300 mt-1 capitalize">{unit}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      } else if (auctionStatus === 'live') {
+        return (
+          <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/50 rounded-2xl p-6 backdrop-blur-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="w-5 h-5 text-orange-300" />
+              <h3 className="text-xl font-bold text-white">Auction Ends In</h3>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              {['days', 'hours', 'minutes', 'seconds'].map((unit) => (
+                <div key={unit} className="bg-white/10 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-white">{timeLeft[unit]}</div>
+                  <div className="text-sm text-gray-300 mt-1 capitalize">{unit}</div>
+                </div>
+              ))}
             </div>
           </div>
         );
@@ -262,17 +313,13 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
         </div>
       );
     } else if (productType === 'REGISTRATION') {
-      const now = new Date().getTime();
-      const regEnd = new Date(registrationEnd).getTime();
-      const isOpen = now < regEnd;
-
       return (
         <div>
           <p className="text-white/60 text-sm mb-2">
-            {isOpen ? 'Starting Price' : 'Price'}
+            {auctionStatus === 'registration_open' ? 'Starting Price' : 'Price'}
           </p>
           <div className={`text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${
-            isOpen ? 'from-green-400 to-emerald-400' : 'from-cyan-400 to-blue-400'
+            auctionStatus === 'registration_open' ? 'from-green-400 to-emerald-400' : 'from-cyan-400 to-blue-400'
           }`}>
             रु{startingPrice?.toLocaleString() || "0"}
           </div>
@@ -290,93 +337,185 @@ function ProductInfoCard({ product, onAddToCart, onBuyNow, onBidClick, onRegiste
     }
   };
 
-const renderActionButtons = () => {
-  if (productType === 'AUCTION') {
-    if (auctionStatus === 'ended') {
-      return (
-        <motion.button disabled className="w-full px-8 py-4 bg-gray-700 text-gray-400 font-bold text-lg rounded-xl cursor-not-allowed">
-          Auction Ended
-        </motion.button>
-      );
-    } else if (auctionStatus === 'upcoming') {
-      return (
-        <motion.button disabled className="w-full px-8 py-4 bg-orange-500/20 border border-orange-500/50 text-orange-300 font-bold text-lg rounded-xl cursor-not-allowed flex items-center justify-center gap-3">
-          <Clock className="w-6 h-6" />
-          Auction Not Started Yet
-        </motion.button>
-      );
+  const renderActionButtons = () => {
+    if (productType === 'AUCTION') {
+      if (auctionStatus === 'ended') {
+        return (
+          <motion.button disabled className="w-full px-8 py-4 bg-gray-700 text-gray-400 font-bold text-lg rounded-xl cursor-not-allowed">
+            Auction Ended
+          </motion.button>
+        );
+      } else if (auctionStatus === 'upcoming') {
+        return (
+          <motion.button disabled className="w-full px-8 py-4 bg-orange-500/20 border border-orange-500/50 text-orange-300 font-bold text-lg rounded-xl cursor-not-allowed flex items-center justify-center gap-3">
+            <Clock className="w-6 h-6" />
+            Auction Not Started Yet
+          </motion.button>
+        );
+      } else {
+        return (
+          <div className="space-y-3">
+            <motion.button 
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }} 
+              onClick={() => onBidClick?.(product)} 
+              className="w-full px-8 py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-orange-500/50 hover:shadow-orange-500/70"
+            >
+              <Gavel className="w-6 h-6" />
+              Place Your Bid
+            </motion.button>
+            
+            {autoBidActive ? (
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onAutoBidClick?.(product)}
+                  className="flex-1 px-6 py-4 bg-yellow-500/20 border-2 border-yellow-500/50 text-yellow-400 rounded-xl font-bold hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-3"
+                >
+                  <Zap className="w-5 h-5 animate-pulse" />
+                  Auto-Bid Active
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onCancelAutoBid?.(itemId)}
+                  className="px-8 py-4 bg-red-500/20 border-2 border-red-500/50 text-red-400 rounded-xl font-bold hover:bg-red-500/30 transition-all"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onAutoBidClick?.(product)}
+                className="w-full px-8 py-4 bg-yellow-500/10 border-2 border-yellow-500/30 text-yellow-400 rounded-xl font-bold hover:bg-yellow-500/20 transition-all flex items-center justify-center gap-3"
+              >
+                <Zap className="w-6 h-6" />
+                Set Auto-Bid
+              </motion.button>
+            )}
+          </div>
+        );
+      }
+    } else if (productType === 'REGISTRATION') {
+      if (auctionStatus === 'ended') {
+        return (
+          <motion.button disabled className="w-full px-8 py-4 bg-gray-700 text-gray-400 font-bold text-lg rounded-xl cursor-not-allowed">
+            Auction Ended
+          </motion.button>
+        );
+      } else if (auctionStatus === 'registration_open') {
+        const isRegistered = product.isUserRegistered;
+        return (
+          <motion.button 
+            whileHover={{ scale: isRegistered ? 1 : 1.02 }} 
+            whileTap={{ scale: isRegistered ? 1 : 0.98 }} 
+            onClick={() => onRegisterClick?.(product)} 
+            disabled={isRegistered} 
+            className={`w-full px-8 py-4 ${isRegistered ? 'bg-green-500/20 border-2 border-green-500/50 text-green-300 cursor-not-allowed' : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50 hover:shadow-green-500/70'} text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3`}
+          >
+            <UserPlus className="w-6 h-6" />
+            {isRegistered ? '✓ Registered' : 'Register Now'}
+          </motion.button>
+        );
+      } else if (auctionStatus === 'registration_closed') {
+        return (
+          <motion.button disabled className="w-full px-8 py-4 bg-orange-500/20 border border-orange-500/50 text-orange-300 font-bold text-lg rounded-xl cursor-not-allowed">
+            <div className="flex items-center justify-center gap-3">
+              <Clock className="w-6 h-6" />
+              <div className="text-center">
+                <div>Registration Closed</div>
+                <div className="text-sm opacity-80">Auction Starts Soon</div>
+              </div>
+            </div>
+          </motion.button>
+        );
+      } else if (auctionStatus === 'live') {
+        const isRegistered = product.isUserRegistered;
+        
+        if (!isRegistered) {
+          return (
+            <motion.button disabled className="w-full px-8 py-4 bg-gray-700 text-gray-400 font-bold text-lg rounded-xl cursor-not-allowed">
+              Registration Required
+            </motion.button>
+          );
+        }
+        
+        return (
+          <div className="space-y-3">
+            <motion.button 
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }} 
+              onClick={() => onBidClick?.(product)} 
+              className="w-full px-8 py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-orange-500/50 hover:shadow-orange-500/70"
+            >
+              <Gavel className="w-6 h-6" />
+              Place Your Bid
+            </motion.button>
+            
+            {autoBidActive ? (
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => onAutoBidClick?.(product)}
+                  className="flex-1 px-6 py-4 bg-yellow-500/20 border-2 border-yellow-500/50 text-yellow-400 rounded-xl font-bold hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-3"
+                >
+                  <Zap className="w-5 h-5 animate-pulse" />
+                  Auto-Bid Active
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onCancelAutoBid?.(itemId)}
+                  className="px-8 py-4 bg-red-500/20 border-2 border-red-500/50 text-red-400 rounded-xl font-bold hover:bg-red-500/30 transition-all"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onAutoBidClick?.(product)}
+                className="w-full px-8 py-4 bg-yellow-500/10 border-2 border-yellow-500/30 text-yellow-400 rounded-xl font-bold hover:bg-yellow-500/20 transition-all flex items-center justify-center gap-3"
+              >
+                <Zap className="w-6 h-6" />
+                Set Auto-Bid
+              </motion.button>
+            )}
+          </div>
+        );
+      }
     } else {
       return (
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onBidClick?.(product)} className="w-full px-8 py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-orange-500/50 hover:shadow-orange-500/70">
-          <Gavel className="w-6 h-6" />
-          Place Your Bid
-        </motion.button>
+        <div className="space-y-3">
+          <motion.button 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }} 
+            onClick={() => onBuyNow?.(product, 1, product?.amount)} 
+            disabled={stock === 0} 
+            className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          >
+            <ShoppingBag className="w-6 h-6" />
+            Buy Now
+          </motion.button>
+          <motion.button 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }} 
+            onClick={() => onAddToCart?.(product)} 
+            disabled={stock === 0} 
+            className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 border border-white/20 hover:border-cyan-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ShoppingCart className="w-6 h-6" />
+            Add to Cart
+          </motion.button>
+        </div>
       );
     }
-  } else if (productType === 'REGISTRATION') {
-    const now = new Date().getTime();
-    const regEnd = new Date(registrationEnd).getTime();
-    const auctionStart = new Date(startTime).getTime();
-    const auctionEnd = new Date(endTime).getTime();
-    
-    // Phase 1: Registration Open
-    if (now < regEnd) {
-      const isRegistered = product.isUserRegistered;
-      return (
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onRegisterClick?.(product)} disabled={isRegistered} className={`w-full px-8 py-4 ${isRegistered ? 'bg-green-500/20 border-2 border-green-500/50 text-green-300 cursor-not-allowed' : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50 hover:shadow-green-500/70'} text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3`}>
-          <UserPlus className="w-6 h-6" />
-          {isRegistered ? '✓ Registered' : 'Register Now'}
-        </motion.button>
-      );
-    }
-    
-    // Phase 2: Registration Closed, Auction Not Started
-    if (now >= regEnd && now < auctionStart) {
-      return (
-        <motion.button disabled className="w-full px-8 py-4 bg-orange-500/20 border border-orange-500/50 text-orange-300 font-bold text-lg rounded-xl cursor-not-allowed">
-          <div className="flex items-center justify-center gap-3">
-            <Clock className="w-6 h-6" />
-            <div className="text-center">
-              <div>Registration Closed</div>
-              <div className="text-sm opacity-80">Auction Starts Soon</div>
-            </div>
-          </div>
-        </motion.button>
-      );
-    }
-    
-    // Phase 3: Auction Live
-    if (now >= auctionStart && now < auctionEnd) {
-      const isRegistered = product.isUserRegistered;
-      return (
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onBidClick?.(product)} disabled={!isRegistered} className={`w-full px-8 py-4 ${isRegistered ? 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 shadow-lg shadow-orange-500/50 hover:shadow-orange-500/70' : 'bg-gray-700 cursor-not-allowed'} text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3`}>
-          <Gavel className="w-6 h-6" />
-          {isRegistered ? 'Place Your Bid' : 'Registration Required'}
-        </motion.button>
-      );
-    }
-    
-    // Phase 4: Auction Ended
-    return (
-      <motion.button disabled className="w-full px-8 py-4 bg-gray-700 text-gray-400 font-bold text-lg rounded-xl cursor-not-allowed">
-        Auction Ended
-      </motion.button>
-    );
-  } else {
-    return (
-      <div className="space-y-3">
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onBuyNow?.(product, 1, product?.amount)} disabled={stock === 0} className="w-full px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
-          <ShoppingBag className="w-6 h-6" />
-          Buy Now
-        </motion.button>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => onAddToCart?.(product)} disabled={stock === 0} className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-lg rounded-xl transition-all flex items-center justify-center gap-3 border border-white/20 hover:border-cyan-400/50 disabled:opacity-50 disabled:cursor-not-allowed">
-          <ShoppingCart className="w-6 h-6" />
-          Add to Cart
-        </motion.button>
-      </div>
-    );
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-800 via-teal-800 to-slate-900 py-12 px-4">
@@ -408,7 +547,7 @@ const renderActionButtons = () => {
                 <AnimatePresence mode="wait">
                   <motion.img
                     key={currentImageIndex}
-                    src={sortedImages[currentImageIndex]?.url}
+                    src={sortedImages[currentImageIndex]?.url || '/placeholder.png'}
                     alt={title || "Product image"}
                     initial={{ opacity: 0, x: 100 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -510,33 +649,28 @@ const renderActionButtons = () => {
             {seller && (
               <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/20">
                 <h3 className="text-lg font-bold text-white mb-4">Seller Information</h3>
-                <button
-                  onClick={handleSellerClick}
-                  className="flex items-center gap-4 w-full hover:bg-white/10 p-3 rounded-xl transition-all group"
-                >
+                <div className="flex items-center gap-4">
                   <div className="relative">
                     {seller?.profilePicture ? (
                       <img
                         src={seller.profilePicture}
                         alt={seller.name || "Seller"}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-cyan-400 group-hover:border-cyan-300 transition-all"
+                        className="w-16 h-16 rounded-full object-cover border-2 border-cyan-400"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center border-2 border-cyan-400 group-hover:border-cyan-300 transition-all">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center border-2 border-cyan-400">
                         <User className="w-8 h-8 text-white" />
                       </div>
                     )}
                     <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-slate-800" />
                   </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-white font-semibold text-lg group-hover:text-cyan-300 transition-colors">
+                  <div className="flex-1">
+                    <p className="text-white font-semibold text-lg">
                       {seller?.name || "Unknown Seller"}
                     </p>
-                    <p className="text-white/60 text-sm mb-2">{seller?.email || "No email provided"}</p>
-                    <SellerBadge totalItemsSold={seller?.totalItemsSold || 0} />
+                    <p className="text-white/60 text-sm">{seller?.email || "No email provided"}</p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-cyan-300 group-hover:translate-x-1 transition-all" />
-                </button>
+                </div>
               </div>
             )}
 
@@ -554,23 +688,9 @@ const renderActionButtons = () => {
             </div>
           </div>
         </motion.div>
-        {/* Reviews Section */}
-        {reviews && reviews.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mt-12"
-          >
-            <ProductReviews 
-              reviews={reviews} 
-              ratingStats={ratingStats} 
-            />
-          </motion.div>
-        )}
       </div>
     </div>
   );
 }
 
-export default ProductInfoCard;
+export default ProductInfoCard

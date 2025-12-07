@@ -1,7 +1,7 @@
 import express from 'express';
 import auctionService from '../Service/auctionService.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
-import { checkRegistration, getAuctionDetails, getmyBids, getNotifications, getwins, placeBid, registerForProduct, setnotificationasread } from '../Controller/auction.Controller.js';
+import { cancelAutoBid, checkRegistration, getAuctionDetails, getAutoBid, getmyBids, getNotifications, getwins, placeBid, registerForProduct, setAutoBid, setnotificationasread } from '../Controller/auction.Controller.js';
 
 const router = express.Router();
 
@@ -27,4 +27,10 @@ router.get('/notifications', authenticateToken, getNotifications);
 router.put('/notifications/:notificationId/read', authenticateToken, setnotificationasread);
 
 router.get('/checkRegistration/:itemId', authenticateToken,checkRegistration )
+
+
+router.post('/setAutoBid', authenticateToken, setAutoBid);
+router.delete('/cancelAutoBid/:itemId', authenticateToken, cancelAutoBid);
+router.get('/getAutoBid/:itemId', authenticateToken, getAutoBid);
+
 export default router;

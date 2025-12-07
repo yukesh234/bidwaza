@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Calendar, ShoppingBag, ShoppingCart, Clock, Gavel, UserPlus, Timer, Star } from "lucide-react";
+import { Calendar, ShoppingBag, ShoppingCart, Clock, Gavel, UserPlus, Timer, Star, Zap } from "lucide-react";
 
-const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick, onBidClick, onRegisterClick, isUserRegistered = false }) => {
+const ProductCard = ({ 
+  product, 
+  onBuyClick, 
+  onAddToCart, 
+  onClick: onProductClick, 
+  onBidClick, 
+  onRegisterClick, 
+  isUserRegistered = false,
+  onAutoBidClick,
+  autoBidActive = false,
+  onCancelAutoBid
+}) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -21,7 +32,6 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
 
   const getInitials = (name) => name?.charAt(0).toUpperCase() || "?";
 
-  // Render star rating
   const renderStars = () => {
     if (!product.rating?.average) return null;
     
@@ -58,7 +68,6 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
     );
   };
 
-  // Update isRegistered when prop changes
   useEffect(() => {
     setIsRegistered(isUserRegistered);
   }, [isUserRegistered]);
@@ -350,18 +359,61 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
         );
       } else {
         return (
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onBidClick?.(product);
-            }}
-            className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center gap-2 group"
-          >
-            <Gavel size={18} className="group-hover:rotate-12 transition-transform duration-200" />
-            <span>Place Bid</span>
-          </motion.button>
+          <div className="space-y-2 mt-3">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onBidClick?.(product);
+              }}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center gap-2 group"
+            >
+              <Gavel size={18} className="group-hover:rotate-12 transition-transform duration-200" />
+              <span>Place Bid</span>
+            </motion.button>
+            
+            {autoBidActive ? (
+              <div className="flex gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAutoBidClick?.(product);
+                  }}
+                  className="flex-1 py-2 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 rounded-lg font-semibold hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2 group"
+                >
+                  <Zap size={16} className="group-hover:rotate-12 transition-transform" />
+                  <span className="text-sm">Auto-Bid Active</span>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelAutoBid?.(product.itemId);
+                  }}
+                  className="px-4 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-lg font-semibold hover:bg-red-500/30 transition-all text-sm"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAutoBidClick?.(product);
+                }}
+                className="w-full py-2 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 rounded-lg font-semibold hover:bg-yellow-500/20 transition-all flex items-center justify-center gap-2 group"
+              >
+                <Zap size={16} className="group-hover:rotate-12 transition-transform" />
+                <span className="text-sm">Set Auto-Bid</span>
+              </motion.button>
+            )}
+          </div>
         );
       }
     } else if (product.productType === 'REGISTRATION') {
@@ -426,18 +478,61 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
         );
       } else {
         return (
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onBidClick?.(product);
-            }}
-            className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center gap-2 group"
-          >
-            <Gavel size={18} className="group-hover:rotate-12 transition-transform duration-200" />
-            <span>Place Bid</span>
-          </motion.button>
+          <div className="space-y-2 mt-3">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onBidClick?.(product);
+              }}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center gap-2 group"
+            >
+              <Gavel size={18} className="group-hover:rotate-12 transition-transform duration-200" />
+              <span>Place Bid</span>
+            </motion.button>
+            
+            {autoBidActive ? (
+              <div className="flex gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAutoBidClick?.(product);
+                  }}
+                  className="flex-1 py-2 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 rounded-lg font-semibold hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2 group"
+                >
+                  <Zap size={16} className="group-hover:rotate-12 transition-transform" />
+                  <span className="text-sm">Auto-Bid Active</span>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelAutoBid?.(product.itemId);
+                  }}
+                  className="px-4 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-lg font-semibold hover:bg-red-500/30 transition-all text-sm"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAutoBidClick?.(product);
+                }}
+                className="w-full py-2 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 rounded-lg font-semibold hover:bg-yellow-500/20 transition-all flex items-center justify-center gap-2 group"
+              >
+                <Zap size={16} className="group-hover:rotate-12 transition-transform" />
+                <span className="text-sm">Set Auto-Bid</span>
+              </motion.button>
+            )}
+          </div>
         );
       }
     } else {
@@ -483,6 +578,18 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
       className="w-full"
     >
       <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-lg hover:shadow-2xl transition-shadow duration-300 bg-white/5 backdrop-blur-md">
+        {autoBidActive && (product.productType === 'AUCTION' || product.productType === 'REGISTRATION') && auctionStatus === 'live' && (
+          <motion.div
+            className="absolute top-3 right-3 z-20 bg-gradient-to-r from-yellow-500 to-orange-500 text-black px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg"
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+          >
+            <Zap size={12} className="animate-pulse" />
+            <span>AUTO</span>
+          </motion.div>
+        )}
+
         <div onClick={() => onProductClick?.(product.itemId)}>
           <div className="relative w-full h-48 overflow-hidden bg-gradient-to-br from-gray-800/50 to-gray-900/50 cursor-pointer">
             <motion.img
@@ -509,8 +616,7 @@ const ProductCard = ({ product, onBuyClick, onAddToCart, onClick: onProductClick
               {renderProductTypeInfo()}
             </motion.div>
 
-            {/* Rating Badge - Top Right */}
-            {product.rating?.average && (
+            {product.rating?.average && !autoBidActive && (
               <motion.div
                 className="absolute top-3 right-3"
                 initial={{ scale: 0 }}

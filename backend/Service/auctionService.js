@@ -2,13 +2,14 @@ import oracledb from 'oracledb';
 import { getConnection } from '../Db/Db.js';
 
 class AuctionService {
+  // Track pending auto-bids to prevent duplicate triggers
+  pendingAutoBids = new Map();
+
   // Place a bid with wallet validation and hold
   async placeBid(userId, itemId, bidAmount, io) {
     let connection;
     try {
       connection = await getConnection();
-
-      // Start transaction
       await connection.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
 
       // 1. Get product details and validate auction
@@ -25,8 +26,6 @@ class AuctionService {
       }
 
       const product = this.mapProduct(productResult.rows[0], productResult.metaData);
-
-      // Validate auction type and status
       const productType = product.product_type || product.PRODUCT_TYPE;
       
       if (!productType) {
@@ -79,12 +78,12 @@ class AuctionService {
         ? currentBidResult.rows[0][1] 
         : null;
 
-      // Validate bid amount (must be higher than current)
+      // Validate bid amount
       if (bidAmount <= currentHighestBid) {
         throw new Error(`Bid must be higher than रु${currentHighestBid.toLocaleString()}`);
       }
 
-      // Prevent seller from bidding on own auction
+      // Prevent seller from bidding
       const sellerId = product.seller_id || product.SELLER_ID;
       if (userId === sellerId) {
         throw new Error('You cannot bid on your own auction');
@@ -103,7 +102,6 @@ class AuctionService {
       const walletId = walletResult.rows[0][0];
       const walletBalance = walletResult.rows[0][1];
 
-      // Calculate available balance (balance - active holds)
       const holdsResult = await connection.execute(
         `SELECT COALESCE(SUM(amount), 0) as total_holds 
          FROM wallet_holds 
@@ -118,7 +116,7 @@ class AuctionService {
         throw new Error(`Insufficient wallet balance. Available: रु${availableBalance.toLocaleString()}`);
       }
 
-      // 5. Release user's previous bid hold on this item (if any)
+      // 5. Release user's previous bid hold
       const prevBidResult = await connection.execute(
         `SELECT b.bid_id FROM bids b
          WHERE b.item_id = :itemId AND b.user_id = :userId 
@@ -130,7 +128,6 @@ class AuctionService {
       if (prevBidResult.rows.length > 0) {
         const prevBidId = prevBidResult.rows[0][0];
         
-        // Release the hold
         await connection.execute(
           `UPDATE wallet_holds 
            SET status = 'RELEASED', released_at = CURRENT_TIMESTAMP
@@ -138,7 +135,6 @@ class AuctionService {
           { prevBidId }
         );
 
-        // Update previous bid status
         await connection.execute(
           `UPDATE bids SET bid_status = 'OUTBID', updated_at = CURRENT_TIMESTAMP
            WHERE bid_id = :prevBidId`,
@@ -146,9 +142,8 @@ class AuctionService {
         );
       }
 
-      // 6. Update previous winner's bid to OUTBID and release their hold
+      // 6. Update previous winner's bid to OUTBID and release hold
       if (currentWinnerId && currentWinnerId !== userId) {
-        // Update bid status to OUTBID
         await connection.execute(
           `UPDATE bids 
            SET bid_status = 'OUTBID', updated_at = CURRENT_TIMESTAMP
@@ -156,7 +151,6 @@ class AuctionService {
           { itemId, currentWinnerId }
         );
 
-        // 🔥 FIX: Release the previous winner's wallet hold
         await connection.execute(
           `UPDATE wallet_holds wh
            SET status = 'RELEASED', released_at = CURRENT_TIMESTAMP
@@ -169,7 +163,6 @@ class AuctionService {
           { itemId, currentWinnerId }
         );
 
-        // Create outbid notification
         await connection.execute(
           `INSERT INTO notifications 
            (notification_id, user_id, type, title, message, item_id, created_at)
@@ -180,7 +173,6 @@ class AuctionService {
           { userId: currentWinnerId, productTitle: product.title || product.TITLE, itemId }
         );
 
-        // Emit socket event to notify the outbid user
         if (io) {
           io.to(`user_${currentWinnerId}`).emit('outbid-notification', {
             itemId,
@@ -207,7 +199,7 @@ class AuctionService {
 
       const newBidId = bidResult.outBinds.bidId[0];
 
-      // 8. Create wallet hold for the new bid
+      // 8. Create wallet hold
       await connection.execute(
         `INSERT INTO wallet_holds 
          (hold_id, wallet_id, bid_id, amount, status, created_at)
@@ -223,7 +215,6 @@ class AuctionService {
         { bidAmount, itemId }
       );
 
-      // Get bidder info
       const bidderResult = await connection.execute(
         `SELECT first_name || ' ' || last_name as name, profile_picture_url 
          FROM users WHERE id = :userId`,
@@ -232,10 +223,9 @@ class AuctionService {
 
       const bidderName = bidderResult.rows[0][0];
 
-      // Commit transaction
       await connection.commit();
 
-      // 10. Broadcast bid update via Socket.io
+      // 10. Broadcast bid update
       if (io) {
         io.to(`auction_${itemId}`).emit('bid-update', {
           itemId,
@@ -246,6 +236,10 @@ class AuctionService {
           timestamp: new Date(),
         });
       }
+
+      // 11. TRIGGER AUTO-BID CHECK (after successful bid)
+      // Schedule auto-bid processing after 10 seconds
+      this.scheduleAutoBidCheck(itemId, userId, bidAmount, io);
 
       return {
         success: true,
@@ -270,13 +264,296 @@ class AuctionService {
     }
   }
 
-  // Register for auction (for REGISTRATION type)
+  // Schedule auto-bid check with 10-second delay
+  scheduleAutoBidCheck(itemId, triggeringUserId, currentBidAmount, io) {
+    const key = `${itemId}`;
+    
+    // Clear any existing pending auto-bid for this item
+    if (this.pendingAutoBids.has(key)) {
+      clearTimeout(this.pendingAutoBids.get(key));
+    }
+
+    // Schedule new auto-bid check
+    const timeoutId = setTimeout(async () => {
+      try {
+        await this.processAutoBids(itemId, triggeringUserId, currentBidAmount, io);
+      } catch (error) {
+        console.error('Error processing auto-bids:', error);
+      } finally {
+        this.pendingAutoBids.delete(key);
+      }
+    }, 10000); // 10 seconds delay
+
+    this.pendingAutoBids.set(key, timeoutId);
+    console.log(`⏰ Scheduled auto-bid check for item ${itemId} in 10 seconds`);
+  }
+
+  // Process auto-bids for an item
+  async processAutoBids(itemId, triggeringUserId, triggeringBidAmount, io) {
+    let connection;
+    try {
+      connection = await getConnection();
+
+      // Get current winning bid
+      const currentBidResult = await connection.execute(
+        `SELECT b.bid_amount, b.user_id, u.first_name || ' ' || u.last_name as bidder_name
+         FROM bids b
+         JOIN users u ON b.user_id = u.id
+         WHERE b.item_id = :itemId AND b.bid_status = 'WINNING'
+         ORDER BY b.bid_amount DESC FETCH FIRST 1 ROW ONLY`,
+        { itemId }
+      );
+
+      if (currentBidResult.rows.length === 0) {
+        console.log(`No current winning bid for item ${itemId}`);
+        return;
+      }
+
+      const currentBidAmount = currentBidResult.rows[0][0];
+      const currentWinnerId = currentBidResult.rows[0][1];
+
+      // Find all active auto-bids for this item (excluding current winner)
+      const autoBidsResult = await connection.execute(
+        `SELECT ab.auto_bid_id, ab.user_id, ab.max_bid_amount, ab.increment_amount,
+                u.first_name || ' ' || u.last_name as user_name
+         FROM auto_bids ab
+         JOIN users u ON ab.user_id = u.id
+         WHERE ab.item_id = :itemId 
+         AND ab.is_active = 'Y'
+         AND ab.user_id != :currentWinnerId
+         AND ab.max_bid_amount > :currentBidAmount
+         ORDER BY ab.max_bid_amount DESC`,
+        { itemId, currentWinnerId, currentBidAmount }
+      );
+
+      if (autoBidsResult.rows.length === 0) {
+        console.log(`No eligible auto-bids for item ${itemId}`);
+        return;
+      }
+
+      // Get the highest auto-bid
+      const [autoBidId, autoBidUserId, maxBidAmount, incrementAmount, userName] = autoBidsResult.rows[0];
+
+      // Calculate next bid amount
+      const nextBidAmount = currentBidAmount + incrementAmount;
+
+      // Check if next bid exceeds max
+      if (nextBidAmount > maxBidAmount) {
+        console.log(`Auto-bid for user ${autoBidUserId} would exceed max (${maxBidAmount})`);
+        
+        // Deactivate this auto-bid
+        await connection.execute(
+          `UPDATE auto_bids 
+           SET is_active = 'N', updated_at = CURRENT_TIMESTAMP
+           WHERE auto_bid_id = :autoBidId`,
+          { autoBidId }
+        );
+        await connection.commit();
+        
+        // Notify user their max was reached
+        if (io) {
+          io.to(`user_${autoBidUserId}`).emit('autobid-max-reached', {
+            itemId,
+            maxBidAmount,
+            currentBidAmount
+          });
+        }
+        
+        return;
+      }
+
+      await connection.close();
+      connection = null;
+
+      // Place the auto-bid
+      console.log(`🤖 AUTO-BID: User ${autoBidUserId} (${userName}) placing bid of रु${nextBidAmount}`);
+      
+      await this.placeBid(autoBidUserId, itemId, nextBidAmount, io);
+
+      // Notify the user that auto-bid was placed
+      if (io) {
+        io.to(`user_${autoBidUserId}`).emit('autobid-placed', {
+          itemId,
+          bidAmount: nextBidAmount,
+          remainingMax: maxBidAmount - nextBidAmount
+        });
+      }
+
+    } catch (error) {
+      console.error('Error processing auto-bids:', error);
+    } finally {
+      if (connection) {
+        await connection.close();
+      }
+    }
+  }
+
+  // Create or update auto-bid
+  async setAutoBid(userId, itemId, maxBidAmount, incrementAmount = 100) {
+    let connection;
+    try {
+      connection = await getConnection();
+
+      // Validate product exists and is an auction
+      const productResult = await connection.execute(
+        `SELECT product_type, current_price, starting_price, end_time, status
+         FROM products WHERE item_id = :itemId`,
+        { itemId }
+      );
+
+      if (productResult.rows.length === 0) {
+        throw new Error('Product not found');
+      }
+
+      const [productType, currentPrice, startingPrice, endTime, status] = productResult.rows[0];
+
+      if (!['AUCTION', 'REGISTRATION'].includes(productType)) {
+        throw new Error('Auto-bid is only available for auctions');
+      }
+
+      if (status !== 'ACTIVE') {
+        throw new Error('Auction is not active');
+      }
+
+      if (new Date() >= new Date(endTime)) {
+        throw new Error('Auction has ended');
+      }
+
+      const actualCurrentPrice = currentPrice || startingPrice;
+
+      if (maxBidAmount <= actualCurrentPrice) {
+        throw new Error(`Max bid must be higher than current price (रु${actualCurrentPrice})`);
+      }
+
+      // Check if auto-bid already exists
+      const existingResult = await connection.execute(
+        `SELECT auto_bid_id FROM auto_bids 
+         WHERE user_id = :userId AND item_id = :itemId`,
+        { userId, itemId }
+      );
+
+      if (existingResult.rows.length > 0) {
+        // Update existing
+        await connection.execute(
+          `UPDATE auto_bids 
+           SET max_bid_amount = :maxBidAmount, 
+               increment_amount = :incrementAmount,
+               is_active = 'Y',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = :userId AND item_id = :itemId`,
+          { maxBidAmount, incrementAmount, userId, itemId }
+        );
+      } else {
+        // Create new
+        await connection.execute(
+          `INSERT INTO auto_bids 
+           (auto_bid_id, user_id, item_id, max_bid_amount, increment_amount, is_active, created_at, updated_at)
+           VALUES (autobid_seq.NEXTVAL, :userId, :itemId, :maxBidAmount, :incrementAmount, 'Y', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          { userId, itemId, maxBidAmount, incrementAmount }
+        );
+      }
+
+      await connection.commit();
+
+      return {
+        success: true,
+        message: 'Auto-bid configured successfully',
+        data: { maxBidAmount, incrementAmount }
+      };
+
+    } catch (error) {
+      if (connection) {
+        await connection.rollback();
+      }
+      throw error;
+    } finally {
+      if (connection) {
+        await connection.close();
+      }
+    }
+  }
+
+  // Cancel auto-bid
+  async cancelAutoBid(userId, itemId) {
+    let connection;
+    try {
+      connection = await getConnection();
+
+      await connection.execute(
+        `UPDATE auto_bids 
+         SET is_active = 'N', updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = :userId AND item_id = :itemId`,
+        { userId, itemId }
+      );
+
+      await connection.commit();
+
+      return {
+        success: true,
+        message: 'Auto-bid cancelled'
+      };
+
+    } catch (error) {
+      if (connection) {
+        await connection.rollback();
+      }
+      throw error;
+    } finally {
+      if (connection) {
+        await connection.close();
+      }
+    }
+  }
+
+  // Get user's auto-bid settings for an item
+  async getAutoBid(userId, itemId) {
+    let connection;
+    try {
+      connection = await getConnection();
+
+      const result = await connection.execute(
+        `SELECT auto_bid_id, max_bid_amount, increment_amount, is_active, created_at, updated_at
+         FROM auto_bids
+         WHERE user_id = :userId AND item_id = :itemId`,
+        { userId, itemId }
+      );
+
+      if (result.rows.length === 0) {
+        return {
+          success: true,
+          data: null
+        };
+      }
+
+      const [autoBidId, maxBidAmount, incrementAmount, isActive, createdAt, updatedAt] = result.rows[0];
+
+      return {
+        success: true,
+        data: {
+          autoBidId,
+          maxBidAmount,
+          incrementAmount,
+          isActive: isActive === 'Y',
+          createdAt,
+          updatedAt
+        }
+      };
+
+    } catch (error) {
+      throw error;
+    } finally {
+      if (connection) {
+        await connection.close();
+      }
+    }
+  }
+
+  // Register for auction (existing method - unchanged)
   async registerForAuction(userId, itemId) {
     let connection;
     try {
       connection = await getConnection();
 
-      // Validate product type
       const productResult = await connection.execute(
         `SELECT product_type, registration_end FROM products WHERE item_id = :itemId`,
         { itemId }
@@ -297,7 +574,6 @@ class AuctionService {
         throw new Error('Registration period has ended');
       }
 
-      // Check if already registered
       const existingReg = await connection.execute(
         `SELECT registration_id FROM auction_registrations 
          WHERE item_id = :itemId AND user_id = :userId`,
@@ -308,7 +584,6 @@ class AuctionService {
         throw new Error('You are already registered for this auction');
       }
 
-      // Insert registration
       await connection.execute(
         `INSERT INTO auction_registrations 
          (registration_id, item_id, user_id, registered_at, is_active)
@@ -327,7 +602,6 @@ class AuctionService {
       if (connection) {
         await connection.rollback();
       }
-      console.error('Error registering for auction:', error);
       throw error;
     } finally {
       if (connection) {
@@ -336,13 +610,12 @@ class AuctionService {
     }
   }
 
-  // Get auction details with bid history
+  // Get auction details (existing method - unchanged)
   async getAuctionDetails(itemId, userId = null) {
     let connection;
     try {
       connection = await getConnection();
 
-      // Get product with current winning bid
       const productResult = await connection.execute(
         `SELECT p.ITEM_ID, p.SELLER_ID, p.TITLE, p.DESCRIPTION, p.CATEGORY, 
                 p.STOCK, p.PRODUCT_TYPE, p.AMOUNT, p.STATUS, p.STARTING_PRICE, 
@@ -365,7 +638,6 @@ class AuctionService {
 
       const productRow = productResult.rows[0];
       
-      // Get product images
       const imagesResult = await connection.execute(
         `SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER 
          FROM product_images 
@@ -381,7 +653,6 @@ class AuctionService {
         displayOrder: img.DISPLAY_ORDER
       }));
 
-      // Format the product object
       const product = {
         itemId: productRow.ITEM_ID,
         sellerId: productRow.SELLER_ID,
@@ -406,7 +677,6 @@ class AuctionService {
         images: images
       };
 
-      // Get bid history (top 10 recent bids)
       const bidsResult = await connection.execute(
         `SELECT b.BID_ID, b.BID_AMOUNT, b.BID_STATUS, b.CREATED_AT,
                 u.FIRST_NAME || ' ' || u.LAST_NAME as BIDDER_NAME,
@@ -431,7 +701,6 @@ class AuctionService {
         isMyBid: row.IS_MY_BID === 'Y',
       }));
 
-      // Check if user is registered (for REGISTRATION type)
       let isRegistered = false;
       if (userId && product.productType === 'REGISTRATION') {
         const regResult = await connection.execute(
@@ -443,7 +712,6 @@ class AuctionService {
         isRegistered = regResult.rows.length > 0;
       }
 
-      // Check if user has placed a bid
       let userBid = null;
       if (userId) {
         const userBidResult = await connection.execute(
@@ -474,7 +742,6 @@ class AuctionService {
       };
 
     } catch (error) {
-      console.error('Error getting auction details:', error);
       throw error;
     } finally {
       if (connection) {
@@ -483,7 +750,6 @@ class AuctionService {
     }
   }
 
-  // Helper to map database row to product object
   mapProduct(row, metaData) {
     const obj = {};
     metaData.forEach((col, index) => {

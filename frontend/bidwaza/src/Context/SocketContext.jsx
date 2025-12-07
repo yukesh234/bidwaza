@@ -34,7 +34,7 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log(' Socket connected:', newSocket.id);
+      console.log('✅ Socket connected:', newSocket.id);
       setConnected(true);
       
       // Rejoin active auctions after reconnection
@@ -44,7 +44,7 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on('disconnect', () => {
-      console.log(' Socket disconnected');
+      console.log('❌ Socket disconnected');
       setConnected(false);
     });
 
@@ -61,7 +61,7 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for outbid notifications
     newSocket.on('outbid-notification', (data) => {
-      console.log(' You were outbid:', data);
+      console.log('🔔 You were outbid:', data);
       toast.error(`You've been outbid on "${data.productTitle}"!`, {
         duration: 5000,
         icon: '🔔',
@@ -70,7 +70,7 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for auction won notifications
     newSocket.on('auction-won', (data) => {
-      console.log(' You won the auction:', data);
+      console.log('🏆 You won the auction:', data);
       toast.success(`Congratulations! You won "${data.productTitle}"!`, {
         duration: 8000,
         icon: '🏆',
@@ -79,7 +79,7 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for auction ending soon
     newSocket.on('auction-ending', (data) => {
-      console.log(' Auction ending soon:', data);
+      console.log('⏰ Auction ending soon:', data);
       toast(`Auction "${data.productTitle}" ending in ${data.timeLeft}!`, {
         duration: 5000,
         icon: '⏰',
@@ -102,6 +102,31 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
+    // 🤖 AUTO-BID EVENTS
+    // Listen for auto-bid placed notifications
+    newSocket.on('autobid-placed', (data) => {
+      console.log('🤖 Auto-bid placed:', data);
+      toast.success(
+        `Auto-bid placed: रु${data.bidAmount.toLocaleString()}. Remaining max: रु${data.remainingMax.toLocaleString()}`,
+        {
+          duration: 6000,
+          icon: '🤖',
+        }
+      );
+    });
+
+    // Listen for auto-bid max reached
+    newSocket.on('autobid-max-reached', (data) => {
+      console.log('⚠️ Auto-bid max reached:', data);
+      toast.error(
+        `Auto-bid maximum reached! Your max bid of रु${data.maxBidAmount.toLocaleString()} has been reached. Current price: रु${data.currentBidAmount.toLocaleString()}`,
+        {
+          duration: 8000,
+          icon: '⚠️',
+        }
+      );
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -115,7 +140,7 @@ export const SocketProvider = ({ children }) => {
     if (socket && connected) {
       socket.emit('join-auction', itemId);
       setActiveAuctions(prev => new Set(prev).add(itemId));
-      console.log(` Joined auction room: ${itemId}`);
+      console.log(`🏠 Joined auction room: ${itemId}`);
     }
   }, [socket, connected]);
 

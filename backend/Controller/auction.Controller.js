@@ -310,3 +310,81 @@ export async function checkRegistration(req, res) {
     }
   }
 }
+
+
+// Set or update auto-bid
+export async function setAutoBid(req, res) {
+  try {
+    const { itemId, maxBidAmount, incrementAmount } = req.body;
+    const userId = req.user.ID || req.user.id;
+
+    if (!itemId || !maxBidAmount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Item ID and max bid amount are required'
+      });
+    }
+
+    const increment = incrementAmount || 100;
+
+    const result = await auctionService.setAutoBid(userId, itemId, maxBidAmount, increment);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error setting auto-bid:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to set auto-bid'
+    });
+  }
+}
+
+// Cancel auto-bid
+export async function cancelAutoBid(req, res) {
+  try {
+    const { itemId } = req.params;
+    const userId = req.user.ID || req.user.id;
+
+    if (!itemId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Item ID is required'
+      });
+    }
+
+    const result = await auctionService.cancelAutoBid(userId, itemId);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error cancelling auto-bid:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to cancel auto-bid'
+    });
+  }
+}
+
+// Get auto-bid settings
+export async function getAutoBid(req, res) {
+  try {
+    const { itemId } = req.params;
+    const userId = req.user.ID || req.user.id;
+
+    if (!itemId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Item ID is required'
+      });
+    }
+
+    const result = await auctionService.getAutoBid(userId, itemId);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting auto-bid:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to get auto-bid'
+    });
+  }
+}

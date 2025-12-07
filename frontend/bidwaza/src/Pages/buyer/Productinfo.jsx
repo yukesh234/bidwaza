@@ -8,6 +8,7 @@ import { useAuth } from "../../Context/Authcontext";
 import api from "../../API/api.js";
 import toast from "react-hot-toast";
 import BidModal from "../../Components/buyer/BidModal.jsx";
+import AutoBidModal from "../../Components/buyer/AutoBidModal.jsx";
 
 function Productinfo() {
   const { itemId } = useParams();
@@ -17,10 +18,13 @@ function Productinfo() {
   const { handleBuyNow } = usePayment();
   const { isAuthenticated, balance } = useAuth();
   
-  console.log(product);
   // Bid modal state
   const [showBidModal, setShowBidModal] = useState(false);
   const [bidAmount, setBidAmount] = useState("");
+
+  // 🤖 Auto-bid state
+  const [showAutoBidModal, setShowAutoBidModal] = useState(false);
+  const [autoBidSettings, setAutoBidSettings] = useState(null);
 
   const onAddToCart = async () => {
     if (!isAuthenticated) {
@@ -29,6 +33,28 @@ function Productinfo() {
       return;
     }
     handleCartclick(product);
+  };
+
+  // Fetch auto-bid settings
+  const fetchAutoBidSettings = async () => {
+    if (!isAuthenticated || !product) return;
+    
+    // Only fetch for auction products
+    if (product.productType !== 'AUCTION' && product.productType !== 'REGISTRATION') {
+      return;
+    }
+
+    try {
+      const response = await api.get(`/auction/getAutoBid/${product.itemId}`);
+      if (response.data.success && response.data.data) {
+        setAutoBidSettings(response.data.data);
+      } else {
+        setAutoBidSettings(null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch auto-bid settings:', error);
+      setAutoBidSettings(null);
+    }
   };
 
   // Handle Bid Click
@@ -82,6 +108,55 @@ function Productinfo() {
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to place bid");
+    }
+  };
+
+  // 🤖 Handle Auto-Bid Click
+  const handleAutoBidClick = (product) => {
+    if (!isAuthenticated) {
+      toast.error("Please login to set auto-bid");
+      navigate("/login");
+      return;
+    }
+    
+    setShowAutoBidModal(true);
+  };
+
+  // 🤖 Submit Auto-Bid
+  const handleSubmitAutoBid = async ({ maxBidAmount, incrementAmount }) => {
+    if (!product) return;
+
+    try {
+      const response = await api.post('/auction/setAutoBid', {
+        itemId: product.itemId,
+        maxBidAmount,
+        incrementAmount,
+      });
+
+      if (response.data.success) {
+        toast.success('Auto-bid configured successfully! 🤖', {
+          duration: 5000,
+        });
+        setShowAutoBidModal(false);
+        
+        // Refresh auto-bid settings
+        fetchAutoBidSettings();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to configure auto-bid');
+    }
+  };
+
+  // 🤖 Cancel Auto-Bid
+  const handleCancelAutoBid = async (itemId) => {
+    try {
+      const response = await api.delete(`/auction/cancelAutoBid/${itemId}`);
+      if (response.data.success) {
+        toast.success('Auto-bid cancelled');
+        setAutoBidSettings(null);
+      }
+    } catch (error) {
+      toast.error('Failed to cancel auto-bid');
     }
   };
 
@@ -160,6 +235,13 @@ function Productinfo() {
     fetchProduct();
   }, [itemId]);
 
+  // Fetch auto-bid settings when product loads
+  useEffect(() => {
+    if (product && isAuthenticated) {
+      fetchAutoBidSettings();
+    }
+  }, [product, isAuthenticated]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-800 via-teal-800 to-slate-900 flex items-center justify-center">
@@ -196,6 +278,10 @@ function Productinfo() {
         onBidClick={handleBidClick}
         onRegisterClick={handleRegisterClick}
         isUserRegistered={product.isUserRegistered}
+        // 🤖 Auto-bid props
+        onAutoBidClick={handleAutoBidClick}
+        autoBidActive={autoBidSettings?.isActive || false}
+        onCancelAutoBid={handleCancelAutoBid}
       />
 
       {/* Bid Modal */}
@@ -206,6 +292,15 @@ function Productinfo() {
         setBidAmount={setBidAmount}
         onClose={() => setShowBidModal(false)}
         onSubmit={handleSubmitBid}
+      />
+
+    
+      <AutoBidModal
+        show={showAutoBidModal}
+        product={product}
+        existingAutoBid={autoBidSettings}
+        onClose={() => setShowAutoBidModal(false)}
+        onSubmit={handleSubmitAutoBid}
       />
     </div>
   );

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../../Context/Authcontext";
 import { useSocket } from "../../Context/SocketContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, User, SlidersHorizontal } from "lucide-react";
+import { X, User, SlidersHorizontal, Zap } from "lucide-react";
 import api from "../../API/api.js";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ProductCard from "../../Components/Cards.jsx";
@@ -11,6 +11,7 @@ import toast from "react-hot-toast";
 import { usePayment } from "../../hooks/usePayment.js";
 import BidModal from "../../Components/buyer/BidModal.jsx";
 import FilterModal from "../../Components/buyer/FilterModal.jsx";
+import AutoBidModal from "../../Components/buyer/AutoBidModal.jsx";
 
 export default function Home() {
   const { isAuthenticated, user, balance } = useAuth();
@@ -18,10 +19,11 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showBidModal, setShowBidModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAutoBidModal, setShowAutoBidModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [bidAmount, setBidAmount] = useState("");
   const [products, setProducts] = useState([]);
-  const [registeredProducts, setRegisteredProducts] = useState(new Set());
+  const [autoBidSettings, setAutoBidSettings] = useState(new Map());
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({
     totalPages: 1,
@@ -35,7 +37,6 @@ export default function Home() {
   const { handleBuyNow } = usePayment();
   const [searchParams, setSearchParams] = useSearchParams();
   
-  // Initialize filters from URL params
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
     productType: searchParams.get('product_type') || '',
@@ -45,69 +46,72 @@ export default function Home() {
     sortBy: searchParams.get('sortBy') || 'newest'
   });
 
-  // Check registration status for a single product
-  const checkRegistrationStatus = async (itemId) => {
-    if (!isAuthenticated) return false;
-    
+  // Fetch Products
+  const fetchProducts = async (page) => {
+    setLoading(true);
     try {
-      const response = await api.get(`/auction/checkRegistration/${itemId}`);
-      return response.data.registered || false;
-    } catch (error) {
-      console.error("Failed to check registration:", error);
-      return false;
+      const search = searchParams.get('search') || '';
+      
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '8',
+      });
+
+      if (search) params.append('search', search);
+      if (filters.category) params.append('category', filters.category);
+      if (filters.productType) params.append('product_type', filters.productType);
+      if (filters.minPrice) params.append('minPrice', filters.minPrice);
+      if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
+      if (filters.minRating) params.append('minRating', filters.minRating);
+      if (filters.sortBy) params.append('sortBy', filters.sortBy);
+
+      const response = await api.get(`/user/getProducts?${params.toString()}`);
+
+      if (response.data.success) {
+        const fetchedProducts = response.data.data.products || [];
+        setProducts(fetchedProducts);
+        setPagination(response.data.data.pagination);
+      } else {
+        toast.error("Failed to load products");
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+      toast.error("Error loading products");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Fetch Products with filters and check registration status
-const fetchProducts = async (page) => {
-  setLoading(true);
-  try {
-    const search = searchParams.get('search') || '';
+  // Fetch auto-bid settings for auction products
+  const fetchAutoBidSettings = async () => {
+    if (!isAuthenticated || products.length === 0) return;
     
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: '8',
-    });
-
-    // Add search if present
-    if (search) params.append('search', search);
+    const settings = new Map();
     
-    // Add filters if present
-    if (filters.category) params.append('category', filters.category);
-    if (filters.productType) params.append('product_type', filters.productType);
-    if (filters.minPrice) params.append('minPrice', filters.minPrice);
-    if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
-    if (filters.minRating) params.append('minRating', filters.minRating);
-    if (filters.sortBy) params.append('sortBy', filters.sortBy);
-
-    const response = await api.get(`/user/getProducts?${params.toString()}`);
-
-    if (response.data.success) {
-      const fetchedProducts = response.data.data.products || [];
-      setProducts(fetchedProducts);
-      setPagination(response.data.data.pagination);
-      
-      // No need to check registration status anymore - it's included in the response!
-    } else {
-      toast.error("Failed to load products");
+    for (const product of products) {
+      if (product.productType === 'AUCTION' || product.productType === 'REGISTRATION') {
+        try {
+          const response = await api.get(`/auction/getAutoBid/${product.itemId}`);
+          if (response.data.success && response.data.data) {
+            settings.set(product.itemId, response.data.data);
+          }
+        } catch (error) {
+          console.error('Failed to fetch auto-bid settings:', error);
+        }
+      }
     }
-  } catch (err) {
-    console.error('Fetch error:', err);
-    toast.error("Error loading products");
-  } finally {
-    setLoading(false);
-  }
-};
+    
+    setAutoBidSettings(settings);
+  };
 
-
-
-
-  // Fetch products when page or searchParams change
   useEffect(() => {
     fetchProducts(currentPage);
   }, [currentPage, searchParams, filters]);
 
-  // Sync filters with URL params when URL changes
+  useEffect(() => {
+    fetchAutoBidSettings();
+  }, [products, isAuthenticated]);
+
   useEffect(() => {
     const newFilters = {
       category: searchParams.get('category') || '',
@@ -121,7 +125,6 @@ const fetchProducts = async (page) => {
     setFilters(newFilters);
   }, [searchParams]);
 
-  // Reset page when search changes
   const [prevSearch, setPrevSearch] = useState(searchParams.get('search') || '');
 
   useEffect(() => {
@@ -132,7 +135,7 @@ const fetchProducts = async (page) => {
     }
   }, [searchParams, prevSearch]);
 
-  // Join auction rooms for displayed products
+  // Join auction rooms
   useEffect(() => {
     if (connected && products.length > 0) {
       products.forEach(product => {
@@ -153,7 +156,7 @@ const fetchProducts = async (page) => {
     };
   }, [connected, products, joinAuction, leaveAuction]);
 
-  // Listen for real-time bid updates
+  // Listen for bid updates
   useEffect(() => {
     if (!socket) return;
 
@@ -277,17 +280,10 @@ const fetchProducts = async (page) => {
 
       if (response.data.success) {
         toast.success("Registration successful!");
-        
-        // Update the registered products set
-        setRegisteredProducts(prev => new Set([...prev, product.itemId]));
-        
         return true;
       } else {
-        // Check if already registered
         if (response.data.message?.toLowerCase().includes('already registered')) {
           toast.error("You're already registered for this auction");
-          // Update state to reflect registration
-          setRegisteredProducts(prev => new Set([...prev, product.itemId]));
         } else {
           toast.error(response.data.message || "Failed to register");
         }
@@ -296,11 +292,8 @@ const fetchProducts = async (page) => {
     } catch (error) {
       const errorMessage = error.response?.data?.message || "Failed to register for product";
       
-      // Check if already registered
       if (errorMessage.toLowerCase().includes('already registered')) {
         toast.error("You're already registered for this auction");
-        // Update state to reflect registration
-        setRegisteredProducts(prev => new Set([...prev, product.itemId]));
       } else {
         toast.error(errorMessage);
       }
@@ -308,19 +301,70 @@ const fetchProducts = async (page) => {
     }
   };
 
+  // 🤖 AUTO-BID HANDLERS
+  const handleAutoBidClick = (product) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+    
+    setSelectedProduct(product);
+    setShowAutoBidModal(true);
+  };
+
+  const handleSubmitAutoBid = async ({ maxBidAmount, incrementAmount }) => {
+    if (!selectedProduct) return;
+
+    try {
+      const response = await api.post('/auction/setAutoBid', {
+        itemId: selectedProduct.itemId,
+        maxBidAmount,
+        incrementAmount,
+      });
+
+      if (response.data.success) {
+        toast.success('Auto-bid configured successfully! 🤖', {
+          duration: 5000,
+        });
+        setShowAutoBidModal(false);
+        
+        // Refresh auto-bid settings
+        const settingsResponse = await api.get(`/auction/getAutoBid/${selectedProduct.itemId}`);
+        if (settingsResponse.data.success && settingsResponse.data.data) {
+          setAutoBidSettings(prev => new Map(prev).set(selectedProduct.itemId, settingsResponse.data.data));
+        }
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to configure auto-bid');
+    }
+  };
+
+  const handleCancelAutoBid = async (itemId) => {
+    try {
+      const response = await api.delete(`/auction/cancelAutoBid/${itemId}`);
+      if (response.data.success) {
+        toast.success('Auto-bid cancelled');
+        setAutoBidSettings(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(itemId);
+          return newMap;
+        });
+      }
+    } catch (error) {
+      toast.error('Failed to cancel auto-bid');
+    }
+  };
+
   const handleclick = (itemId) => navigate(`/productinfo/${itemId}`);
 
-  // Apply filters - UPDATE URL WITH FILTER PARAMS
   const applyFilters = () => {
     const newParams = new URLSearchParams(searchParams);
     
-    // Keep search if it exists
     const currentSearch = searchParams.get('search');
     if (currentSearch) {
       newParams.set('search', currentSearch);
     }
     
-    // Update or remove filter params
     if (filters.category) {
       newParams.set('category', filters.category);
     } else {
@@ -357,17 +401,14 @@ const fetchProducts = async (page) => {
       newParams.delete('sortBy');
     }
     
-    // Update URL with new params
     setSearchParams(newParams);
     setCurrentPage(1);
     setShowFilters(false);
   };
 
-  // Clear filters - REMOVE ALL FILTER PARAMS FROM URL
   const clearFilters = () => {
     const newParams = new URLSearchParams();
     
-    // Keep only search if it exists
     const currentSearch = searchParams.get('search');
     if (currentSearch) {
       newParams.set('search', currentSearch);
@@ -500,7 +541,6 @@ const fetchProducts = async (page) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white pt-24">
-      {/* Socket Connection Status */}
       {isAuthenticated && (
         <div className="fixed top-20 right-4 z-[100]">
           <div className={`flex items-center gap-2 px-3 py-2 rounded-lg backdrop-blur-sm ${
@@ -558,17 +598,19 @@ const fetchProducts = async (page) => {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
                 {products.map((product) => (
-                              <ProductCard
-                key={product.itemId}
-                product={product}
-                onBuyClick={handleBuyNow}
-                onAddToCart={onAddToCart}
-                onClick={handleclick}
-                onBidClick={handleBidClick}
-                onRegisterClick={handleRegisterClick}
-                isUserRegistered={product.isUserRegistered} // Changed from registeredProducts.has(product.itemId)
-              />
-
+                  <ProductCard
+                    key={product.itemId}
+                    product={product}
+                    onBuyClick={handleBuyNow}
+                    onAddToCart={onAddToCart}
+                    onClick={handleclick}
+                    onBidClick={handleBidClick}
+                    onRegisterClick={handleRegisterClick}
+                    onAutoBidClick={handleAutoBidClick}
+                    isUserRegistered={product.isUserRegistered}
+                    autoBidActive={autoBidSettings.has(product.itemId) && autoBidSettings.get(product.itemId)?.isActive}
+                    onCancelAutoBid={handleCancelAutoBid}
+                  />
                 ))}
               </div>
               {pagination.totalPages > 1 && <PaginationControls />}
@@ -595,6 +637,14 @@ const fetchProducts = async (page) => {
         setBidAmount={setBidAmount}
         onClose={() => setShowBidModal(false)}
         onSubmit={handleSubmitBid}
+      />
+
+      <AutoBidModal
+        show={showAutoBidModal}
+        product={selectedProduct}
+        existingAutoBid={selectedProduct ? autoBidSettings.get(selectedProduct.itemId) : null}
+        onClose={() => setShowAutoBidModal(false)}
+        onSubmit={handleSubmitAutoBid}
       />
 
       <footer className="py-12 px-6 border-t border-white/10 mt-20 text-center text-gray-400">
