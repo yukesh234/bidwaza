@@ -78,11 +78,8 @@ function App() {
         <Route path="/esewa/success" element={<PaymentSuccess />} />
         <Route path="/esewa/failure" element={<PaymentFailure />} />
 
-        {/* Seller Dashboard Routes - Nested routing */}
-        <Route 
-          path="/seller/*" 
-          element={isAuthenticated ? <SellerDashboard /> : <Navigate to="/login" replace />} 
-        />
+        {/* Seller Dashboard Routes - No protection, handles auth internally */}
+        <Route path="/seller/*" element={<SellerDashboard />} />
       </Routes>
     </>
   )

@@ -10,6 +10,159 @@ import {
 } from '../../services/sellerservices';
 import toast from 'react-hot-toast';
 
+// AuctionStatistics Component
+function AuctionStatistics({ auctionStats }) {
+  // Helper to get color based on bid count
+  const getHeatmapColor = (count, maxCount) => {
+    if (count === 0) return 'bg-white/5';
+    const intensity = count / maxCount;
+    if (intensity > 0.7) return 'bg-orange-500';
+    if (intensity > 0.5) return 'bg-orange-400';
+    if (intensity > 0.3) return 'bg-orange-300';
+    if (intensity > 0.1) return 'bg-orange-200';
+    return 'bg-orange-100';
+  };
+
+  // Find max count for color scaling
+  const allCounts = auctionStats.bidActivity?.flatMap(day => 
+    Object.entries(day)
+      .filter(([key]) => key !== 'day')
+      .map(([_, value]) => value)
+  ) || [];
+  const maxCount = Math.max(...allCounts, 1);
+
+  return (
+    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+      <div className="flex items-center gap-2 mb-4">
+        <Activity className="w-5 h-5 text-orange-400" />
+        <h3 className="text-lg font-bold text-white">Auction Performance</h3>
+      </div>
+      
+      <div className="space-y-6">
+        {/* Key Metrics Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-all">
+            <p className="text-white/60 text-sm mb-1">Total Auctions</p>
+            <p className="text-2xl font-bold text-white">{auctionStats.totalAuctions}</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-all">
+            <p className="text-white/60 text-sm mb-1">Completed</p>
+            <p className="text-2xl font-bold text-green-400">{auctionStats.completedAuctions}</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-all">
+            <p className="text-white/60 text-sm mb-1">Avg Bids/Auction</p>
+            <p className="text-2xl font-bold text-cyan-400">{auctionStats.avgBidsPerAuction}</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-all">
+            <p className="text-white/60 text-sm mb-1">Total Bids</p>
+            <p className="text-2xl font-bold text-purple-400">{auctionStats.totalBids}</p>
+          </div>
+        </div>
+
+        {/* Bid Activity Heatmap */}
+        {auctionStats.bidActivity && auctionStats.bidActivity.length > 0 ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-white/80 font-semibold text-sm">Bid Activity Heatmap</p>
+              <div className="flex items-center gap-2 text-xs text-white/60">
+                <span>Low</span>
+                <div className="flex gap-1">
+                  <div className="w-4 h-4 rounded bg-orange-100"></div>
+                  <div className="w-4 h-4 rounded bg-orange-200"></div>
+                  <div className="w-4 h-4 rounded bg-orange-300"></div>
+                  <div className="w-4 h-4 rounded bg-orange-400"></div>
+                  <div className="w-4 h-4 rounded bg-orange-500"></div>
+                </div>
+                <span>High</span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="inline-block min-w-full">
+                {/* Header Row with Time Slots */}
+                <div className="flex gap-2 mb-2">
+                  <div className="w-12"></div>
+                  {['9AM', '12PM', '3PM', '6PM', '9PM'].map(time => (
+                    <div key={time} className="flex-1 min-w-[60px] text-center">
+                      <span className="text-white/60 text-xs font-medium">{time}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Heatmap Grid */}
+                <div className="space-y-2">
+                  {auctionStats.bidActivity.map((dayData, index) => (
+                    <div key={index} className="flex gap-2 items-center">
+                      {/* Day Label */}
+                      <div className="w-12">
+                        <span className="text-white/70 text-xs font-medium">{dayData.day}</span>
+                      </div>
+                      
+                      {/* Time Slot Cells */}
+                      {['9AM', '12PM', '3PM', '6PM', '9PM'].map(time => {
+                        const count = dayData[time] || 0;
+                        const colorClass = getHeatmapColor(count, maxCount);
+                        
+                        return (
+                          <div
+                            key={time}
+                            className={`flex-1 min-w-[60px] h-12 rounded-lg ${colorClass} flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-orange-400 transition-all group relative`}
+                            title={`${dayData.day} ${time}: ${count} bids`}
+                          >
+                            <span className={`text-sm font-semibold ${count > 0 ? 'text-white' : 'text-white/30'}`}>
+                              {count}
+                            </span>
+                            
+                            {/* Tooltip on hover */}
+                            <div className="absolute bottom-full mb-2 hidden group-hover:block z-10">
+                              <div className="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl border border-white/20 whitespace-nowrap">
+                                <div className="font-semibold">{dayData.day} at {time}</div>
+                                <div className="text-white/70">{count} {count === 1 ? 'bid' : 'bids'}</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className="text-white/50 text-xs text-center mt-3">
+              Hover over cells to see detailed bid counts
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white/5 rounded-lg p-8 text-center">
+            <p className="text-white/40 text-sm">No bid activity data available</p>
+          </div>
+        )}
+
+        {/* Win Rate Progress Bar */}
+        {auctionStats.totalAuctions > 0 && (
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-white/80 text-sm font-semibold">Success Rate</span>
+              <span className="text-green-400 font-bold">{auctionStats.winRate}%</span>
+            </div>
+            <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-500"
+                style={{ width: `${auctionStats.winRate}%` }}
+              ></div>
+            </div>
+            <p className="text-white/50 text-xs">
+              {auctionStats.completedAuctions} of {auctionStats.totalAuctions} auctions completed successfully
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Main ComprehensiveAnalytics Component
 function ComprehensiveAnalytics({ stats }) {
   const [timeRange, setTimeRange] = useState('6months');
   const [loading, setLoading] = useState(true);
@@ -469,61 +622,8 @@ function ComprehensiveAnalytics({ stats }) {
           )}
         </div>
 
-        {/* Auction Statistics */}
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-5 h-5 text-orange-400" />
-            <h3 className="text-lg font-bold text-white">Auction Performance</h3>
-          </div>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/5 rounded-lg p-4">
-                <p className="text-white/60 text-sm mb-1">Total Auctions</p>
-                <p className="text-2xl font-bold text-white">{auctionStats.totalAuctions}</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-4">
-                <p className="text-white/60 text-sm mb-1">Win Rate</p>
-                <p className="text-2xl font-bold text-green-400">{auctionStats.winRate}%</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-4">
-                <p className="text-white/60 text-sm mb-1">Avg Bids</p>
-                <p className="text-2xl font-bold text-cyan-400">{auctionStats.avgBidsPerAuction}</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-4">
-                <p className="text-white/60 text-sm mb-1">Total Bids</p>
-                <p className="text-2xl font-bold text-purple-400">{auctionStats.totalBids}</p>
-              </div>
-            </div>
-            
-            {/* Bid Activity Bar */}
-            {auctionStats.bidActivity && auctionStats.bidActivity.length > 0 && (
-              <div className="mt-4">
-                <p className="text-white/80 text-sm mb-2">Bid Activity by Day</p>
-                <ResponsiveContainer width="100%" height={150}>
-                  <BarChart data={auctionStats.bidActivity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="day" stroke="rgba(255,255,255,0.6)" />
-                    <YAxis stroke="rgba(255,255,255,0.6)" />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        borderRadius: '8px',
-                        color: '#fff'
-                      }}
-                      itemStyle={{ color: '#fff' }}
-                      labelStyle={{ color: '#fff' }}
-                      cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                    />
-                    <Bar dataKey="9PM" stackId="a" fill="#f59e0b" />
-                    <Bar dataKey="6PM" stackId="a" fill="#3b82f6" />
-                    <Bar dataKey="3PM" stackId="a" fill="#10b981" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Auction Statistics - New Enhanced Component */}
+        <AuctionStatistics auctionStats={auctionStats} />
       </div>
     </div>
   );

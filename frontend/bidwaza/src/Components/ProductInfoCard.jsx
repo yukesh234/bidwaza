@@ -650,7 +650,12 @@ function ProductInfoCard({
               <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/20">
                 <h3 className="text-lg font-bold text-white mb-4">Seller Information</h3>
                 <div className="flex items-center gap-4">
-                  <div className="relative">
+                  <div className="relative"
+                  onClick={(e)=>{
+                    e.stopPropagation();
+                    console.log("Seller profile clicked");
+                  }}
+                  >
                     {seller?.profilePicture ? (
                       <img
                         src={seller.profilePicture}

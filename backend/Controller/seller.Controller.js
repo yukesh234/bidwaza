@@ -1080,251 +1080,251 @@ export async function sellerstats(req, res) {
   }
 }
 
-export async function editProduct(req, res) {
-  let connection;
-  try {
-    console.log("req.body:", req.body);
-    console.log("req.files:", req.files);
-    connection = await getConnection();
-    const { ProductId } = req.params;
-    const userId = req.user.ID;
+// export async function editProduct(req, res) {
+//   let connection;
+//   try {
+//     console.log("req.body:", req.body);
+//     console.log("req.files:", req.files);
+//     connection = await getConnection();
+//     const { ProductId } = req.params;
+//     const userId = req.user.ID;
     
-    // Parse body data
-    let formData = req.body.formData;
-    let deletedImageUrls = req.body.deletedImageUrls || [];
+//     // Parse body data
+//     let formData = req.body.formData;
+//     let deletedImageUrls = req.body.deletedImageUrls || [];
 
-    if (typeof formData === 'string') {
-      formData = JSON.parse(formData);
-    }
-    if (typeof deletedImageUrls === 'string') {
-      deletedImageUrls = JSON.parse(deletedImageUrls);
-    }
+//     if (typeof formData === 'string') {
+//       formData = JSON.parse(formData);
+//     }
+//     if (typeof deletedImageUrls === 'string') {
+//       deletedImageUrls = JSON.parse(deletedImageUrls);
+//     }
 
-    const newFiles = req.files || [];
+//     const newFiles = req.files || [];
 
-    // Validation
-    if (!ProductId) {
-      return res.status(400).json({
-        success: false,
-        message: "ProductId is required"
-      });
-    }
+//     // Validation
+//     if (!ProductId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "ProductId is required"
+//       });
+//     }
 
-    if (!formData) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid form data'
-      });
-    }
+//     if (!formData) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid form data'
+//       });
+//     }
 
-    // Validate required fields
-    if (!formData.title?.trim() || !formData.description?.trim() || 
-        !formData.category || !formData.product_type) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields: title, description, category, product_type'
-      });
-    }
+//     // Validate required fields
+//     if (!formData.title?.trim() || !formData.description?.trim() || 
+//         !formData.category || !formData.product_type) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Missing required fields: title, description, category, product_type'
+//       });
+//     }
 
-    // Check product ownership and status
-    const ownerCheckQuery = `
-      SELECT SELLER_ID, PRODUCT_TYPE, STATUS FROM PRODUCTS WHERE ITEM_ID = :itemId
-    `;
+//     // Check product ownership and status
+//     const ownerCheckQuery = `
+//       SELECT SELLER_ID, PRODUCT_TYPE, STATUS FROM PRODUCTS WHERE ITEM_ID = :itemId
+//     `;
     
-    const ownerCheckResult = await connection.execute(ownerCheckQuery, [ProductId]);
+//     const ownerCheckResult = await connection.execute(ownerCheckQuery, [ProductId]);
     
-    if (ownerCheckResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
+//     if (ownerCheckResult.rows.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Product not found'
+//       });
+//     }
 
-    const [product] = ownerCheckResult.rows;
-    const [sellerId, productType, status] = product;
+//     const [product] = ownerCheckResult.rows;
+//     const [sellerId, productType, status] = product;
 
-    if (sellerId !== userId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Unauthorized: You can only edit your own products'
-      });
-    }
+//     if (sellerId !== userId) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'Unauthorized: You can only edit your own products'
+//       });
+//     }
 
-    if (status === 'SOLD' || status === 'COMPLETED') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot edit completed or sold products'
-      });
-    }
+//     if (status === 'SOLD' || status === 'COMPLETED') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Cannot edit completed or sold products'
+//       });
+//     }
 
-    // Step 1: Delete images from Cloudinary and database
-    if (deletedImageUrls && deletedImageUrls.length > 0) {
-      for (const url of deletedImageUrls) {
-        try {
-          await deleteImage(url);
-        } catch (err) {
-          console.error(`Failed to delete image ${url}:`, err);
-        }
-      }
+//     // Step 1: Delete images from Cloudinary and database
+//     if (deletedImageUrls && deletedImageUrls.length > 0) {
+//       for (const url of deletedImageUrls) {
+//         try {
+//           await deleteImage(url);
+//         } catch (err) {
+//           console.error(`Failed to delete image ${url}:`, err);
+//         }
+//       }
 
-      if (deletedImageUrls.length > 0) {
-        const placeholders = deletedImageUrls.map((_, i) => `:url${i}`).join(',');
-        const deleteImagesQuery = `
-          DELETE FROM PRODUCT_IMAGES 
-          WHERE ITEM_ID = :itemId AND IMAGE_URL IN (${placeholders})
-        `;
+//       if (deletedImageUrls.length > 0) {
+//         const placeholders = deletedImageUrls.map((_, i) => `:url${i}`).join(',');
+//         const deleteImagesQuery = `
+//           DELETE FROM PRODUCT_IMAGES 
+//           WHERE ITEM_ID = :itemId AND IMAGE_URL IN (${placeholders})
+//         `;
 
-        const deleteParams = { itemId: ProductId };
-        deletedImageUrls.forEach((url, i) => {
-          deleteParams[`url${i}`] = url;
-        });
+//         const deleteParams = { itemId: ProductId };
+//         deletedImageUrls.forEach((url, i) => {
+//           deleteParams[`url${i}`] = url;
+//         });
 
-        await connection.execute(deleteImagesQuery, deleteParams);
-      }
-    }
+//         await connection.execute(deleteImagesQuery, deleteParams);
+//       }
+//     }
 
-    // Step 2: Upload new images to Cloudinary
-    const uploadedImageUrls = [];
-    if (newFiles && newFiles.length > 0) {
-      // Upload images using the same method as addProduct
-      const uploadResults = await Promise.all(
-        newFiles.map(file => uploadImage(file?.path))
-      );
+//     // Step 2: Upload new images to Cloudinary
+//     const uploadedImageUrls = [];
+//     if (newFiles && newFiles.length > 0) {
+//       // Upload images using the same method as addProduct
+//       const uploadResults = await Promise.all(
+//         newFiles.map(file => uploadImage(file?.path))
+//       );
 
-      const validUrls = uploadResults.filter(url => url && typeof url === 'string');
-      uploadedImageUrls.push(...validUrls);
+//       const validUrls = uploadResults.filter(url => url && typeof url === 'string');
+//       uploadedImageUrls.push(...validUrls);
 
-      if (validUrls.length > 0) {
-        console.log('Uploaded image URLs:', validUrls);
-      }
-    }
+//       if (validUrls.length > 0) {
+//         console.log('Uploaded image URLs:', validUrls);
+//       }
+//     }
 
-    // Step 3: Insert new images into database
-    if (uploadedImageUrls.length > 0) {
-      // Get max display order
-      const getMaxOrderQuery = `
-        SELECT NVL(MAX(DISPLAY_ORDER), 0) as maxOrder FROM PRODUCT_IMAGES WHERE ITEM_ID = :itemId
-      `;
+//     // Step 3: Insert new images into database
+//     if (uploadedImageUrls.length > 0) {
+//       // Get max display order
+//       const getMaxOrderQuery = `
+//         SELECT NVL(MAX(DISPLAY_ORDER), 0) as maxOrder FROM PRODUCT_IMAGES WHERE ITEM_ID = :itemId
+//       `;
       
-      const orderResult = await connection.execute(getMaxOrderQuery, [ProductId]);
-      let displayOrder = (orderResult.rows[0]?.[0] || 0) + 1;
+//       const orderResult = await connection.execute(getMaxOrderQuery, [ProductId]);
+//       let displayOrder = (orderResult.rows[0]?.[0] || 0) + 1;
 
-      // Insert each image - FIXED: Use image_seq instead of product_images_seq
-      for (const imageUrl of uploadedImageUrls) {
-        const insertImageQuery = `
-          INSERT INTO PRODUCT_IMAGES (IMAGE_ID, ITEM_ID, IMAGE_URL, DISPLAY_ORDER, IS_PRIMARY)
-          VALUES (image_seq.NEXTVAL, :itemId, :imageUrl, :displayOrder, 'N')
-        `;
+//       // Insert each image - FIXED: Use image_seq instead of product_images_seq
+//       for (const imageUrl of uploadedImageUrls) {
+//         const insertImageQuery = `
+//           INSERT INTO PRODUCT_IMAGES (IMAGE_ID, ITEM_ID, IMAGE_URL, DISPLAY_ORDER, IS_PRIMARY)
+//           VALUES (image_seq.NEXTVAL, :itemId, :imageUrl, :displayOrder, 'N')
+//         `;
 
-        await connection.execute(insertImageQuery, {
-          itemId: ProductId,
-          imageUrl: imageUrl,
-          displayOrder: displayOrder++
-        }, { autoCommit: false });
-      }
-    }
+//         await connection.execute(insertImageQuery, {
+//           itemId: ProductId,
+//           imageUrl: imageUrl,
+//           displayOrder: displayOrder++
+//         }, { autoCommit: false });
+//       }
+//     }
 
-    // Step 4: Update product fields
-    const updateFields = [];
-    const updateParams = { itemId: ProductId };
+//     // Step 4: Update product fields
+//     const updateFields = [];
+//     const updateParams = { itemId: ProductId };
 
-    if (formData.title !== undefined) {
-      updateFields.push('TITLE = :title');
-      updateParams.title = formData.title.trim();
-    }
-    if (formData.description !== undefined) {
-      updateFields.push('DESCRIPTION = :description');
-      updateParams.description = formData.description.trim();
-    }
-    if (formData.category !== undefined) {
-      updateFields.push('CATEGORY = :category');
-      updateParams.category = formData.category;
-    }
-    if (formData.stock !== undefined) {
-      updateFields.push('STOCK = :stock');
-      updateParams.stock = parseInt(formData.stock) || 1;
-    }
-    if (formData.amount !== undefined) {
-      updateFields.push('AMOUNT = :amount');
-      updateParams.amount = parseFloat(formData.amount) || 0;
-    }
-    if (formData.starting_price !== undefined && formData.starting_price !== '') {
-      updateFields.push('STARTING_PRICE = :startingPrice');
-      updateParams.startingPrice = parseFloat(formData.starting_price);
-    }
-    if (formData.start_time !== undefined && formData.start_time !== '') {
-      updateFields.push('START_TIME = TO_TIMESTAMP(:startTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
-      updateParams.startTime = formData.start_time;
-    }
-    if (formData.end_time !== undefined && formData.end_time !== '') {
-      updateFields.push('END_TIME = TO_TIMESTAMP(:endTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
-      updateParams.endTime = formData.end_time;
-    }
-    if (formData.registration_end !== undefined && formData.registration_end !== '') {
-      updateFields.push('REGISTRATION_END = TO_TIMESTAMP(:registrationEnd, \'YYYY-MM-DD"T"HH24:MI:SS\')');
-      updateParams.registrationEnd = formData.registration_end;
-    }
+//     if (formData.title !== undefined) {
+//       updateFields.push('TITLE = :title');
+//       updateParams.title = formData.title.trim();
+//     }
+//     if (formData.description !== undefined) {
+//       updateFields.push('DESCRIPTION = :description');
+//       updateParams.description = formData.description.trim();
+//     }
+//     if (formData.category !== undefined) {
+//       updateFields.push('CATEGORY = :category');
+//       updateParams.category = formData.category;
+//     }
+//     if (formData.stock !== undefined) {
+//       updateFields.push('STOCK = :stock');
+//       updateParams.stock = parseInt(formData.stock) || 1;
+//     }
+//     if (formData.amount !== undefined) {
+//       updateFields.push('AMOUNT = :amount');
+//       updateParams.amount = parseFloat(formData.amount) || 0;
+//     }
+//     if (formData.starting_price !== undefined && formData.starting_price !== '') {
+//       updateFields.push('STARTING_PRICE = :startingPrice');
+//       updateParams.startingPrice = parseFloat(formData.starting_price);
+//     }
+//     if (formData.start_time !== undefined && formData.start_time !== '') {
+//       updateFields.push('START_TIME = TO_TIMESTAMP(:startTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+//       updateParams.startTime = formData.start_time;
+//     }
+//     if (formData.end_time !== undefined && formData.end_time !== '') {
+//       updateFields.push('END_TIME = TO_TIMESTAMP(:endTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+//       updateParams.endTime = formData.end_time;
+//     }
+//     if (formData.registration_end !== undefined && formData.registration_end !== '') {
+//       updateFields.push('REGISTRATION_END = TO_TIMESTAMP(:registrationEnd, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+//       updateParams.registrationEnd = formData.registration_end;
+//     }
 
-    // Always update UPDATED_AT
-    updateFields.push('UPDATED_AT = SYSTIMESTAMP');
+//     // Always update UPDATED_AT
+//     updateFields.push('UPDATED_AT = SYSTIMESTAMP');
 
-    if (updateFields.length === 1) { // Only UPDATED_AT
-      return res.status(400).json({
-        success: false,
-        message: 'No fields to update'
-      });
-    }
+//     if (updateFields.length === 1) { // Only UPDATED_AT
+//       return res.status(400).json({
+//         success: false,
+//         message: 'No fields to update'
+//       });
+//     }
 
-    const updateQuery = `UPDATE PRODUCTS SET ${updateFields.join(', ')} WHERE ITEM_ID = :itemId`;
-    const updateResult = await connection.execute(updateQuery, updateParams, { autoCommit: false });
+//     const updateQuery = `UPDATE PRODUCTS SET ${updateFields.join(', ')} WHERE ITEM_ID = :itemId`;
+//     const updateResult = await connection.execute(updateQuery, updateParams, { autoCommit: false });
 
-    if (updateResult.rowsAffected === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Failed to update product'
-      });
-    }
+//     if (updateResult.rowsAffected === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Failed to update product'
+//       });
+//     }
 
-    // Commit all changes
-    await connection.commit();
+//     // Commit all changes
+//     await connection.commit();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Product updated successfully',
-      data: {
-        productId: ProductId,
-        uploadedImages: uploadedImageUrls.length,
-        deletedImages: deletedImageUrls.length,
-        updatedFields: updateFields.length - 1
-      }
-    });
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Product updated successfully',
+//       data: {
+//         productId: ProductId,
+//         uploadedImages: uploadedImageUrls.length,
+//         deletedImages: deletedImageUrls.length,
+//         updatedFields: updateFields.length - 1
+//       }
+//     });
 
-  } catch (error) {
-    // Rollback on error
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackErr) {
-        console.error('Rollback error:', rollbackErr);
-      }
-    }
+//   } catch (error) {
+//     // Rollback on error
+//     if (connection) {
+//       try {
+//         await connection.rollback();
+//       } catch (rollbackErr) {
+//         console.error('Rollback error:', rollbackErr);
+//       }
+//     }
 
-    console.error('Edit product error:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to update product'
-    });
+//     console.error('Edit product error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message || 'Failed to update product'
+//     });
 
-  } finally {
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeErr) {
-        console.error('Connection close error:', closeErr);
-      }
-    }
-  }
-}
+//   } finally {
+//     if (connection) {
+//       try {
+//         await connection.close();
+//       } catch (closeErr) {
+//         console.error('Connection close error:', closeErr);
+//       }
+//     }
+//   }
+// }
 
 // export async function deleteProduct(req, res) {
 //   let connection;
@@ -1558,7 +1558,280 @@ export async function deleteProduct(req, res) {
 
 
 
+export async function editProduct(req, res) {
+  let connection;
+  try {
+    console.log("req.body:", req.body);
+    console.log("req.files:", req.files);
+    connection = await getConnection();
+    const { ProductId } = req.params;
+    const userId = req.user.ID;
+    
+    // Parse body data
+    let formData = req.body.formData;
+    let deletedImageUrls = req.body.deletedImageUrls || [];
 
+    if (typeof formData === 'string') {
+      formData = JSON.parse(formData);
+    }
+    if (typeof deletedImageUrls === 'string') {
+      deletedImageUrls = JSON.parse(deletedImageUrls);
+    }
+
+    const newFiles = req.files || [];
+
+    // Validation
+    if (!ProductId) {
+      return res.status(400).json({
+        success: false,
+        message: "ProductId is required"
+      });
+    }
+
+    if (!formData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid form data'
+      });
+    }
+
+    // Validate required fields
+    if (!formData.title?.trim() || !formData.description?.trim() || 
+        !formData.category || !formData.product_type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: title, description, category, product_type'
+      });
+    }
+
+    // Check product ownership and status - IMPROVED QUERY
+    const ownerCheckQuery = `
+      SELECT SELLER_ID, PRODUCT_TYPE, STATUS, START_TIME 
+      FROM PRODUCTS 
+      WHERE ITEM_ID = :itemId
+    `;
+    
+    const ownerCheckResult = await connection.execute(ownerCheckQuery, [ProductId]);
+    
+    if (ownerCheckResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    const [product] = ownerCheckResult.rows;
+    const [sellerId, productType, status, startTime] = product;
+
+    // Ownership check
+    if (sellerId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: You can only edit your own products'
+      });
+    }
+
+    // Status checks
+    if (status === 'SOLD' || status === 'COMPLETED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot edit completed or sold products'
+      });
+    }
+
+    // NEW: Check if auction has started
+    if ((productType === 'AUCTION' || productType === 'REGISTRATION') && startTime) {
+      const auctionStarted = new Date(startTime) <= new Date();
+      if (auctionStarted) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot edit auction after it has started'
+        });
+      }
+    }
+
+    // NEW: Prevent product type changes
+    if (formData.product_type && formData.product_type !== productType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot change product type after creation'
+      });
+    }
+
+    // Step 1: Delete images from Cloudinary and database
+    if (deletedImageUrls && deletedImageUrls.length > 0) {
+      for (const url of deletedImageUrls) {
+        try {
+          await deleteImage(url);
+        } catch (err) {
+          console.error(`Failed to delete image ${url}:`, err);
+        }
+      }
+
+      if (deletedImageUrls.length > 0) {
+        const placeholders = deletedImageUrls.map((_, i) => `:url${i}`).join(',');
+        const deleteImagesQuery = `
+          DELETE FROM PRODUCT_IMAGES 
+          WHERE ITEM_ID = :itemId AND IMAGE_URL IN (${placeholders})
+        `;
+
+        const deleteParams = { itemId: ProductId };
+        deletedImageUrls.forEach((url, i) => {
+          deleteParams[`url${i}`] = url;
+        });
+
+        await connection.execute(deleteImagesQuery, deleteParams);
+      }
+    }
+
+    // Step 2: Upload new images to Cloudinary
+    const uploadedImageUrls = [];
+    if (newFiles && newFiles.length > 0) {
+      const uploadResults = await Promise.all(
+        newFiles.map(file => uploadImage(file?.path))
+      );
+
+      const validUrls = uploadResults.filter(url => url && typeof url === 'string');
+      uploadedImageUrls.push(...validUrls);
+
+      if (validUrls.length > 0) {
+        console.log('Uploaded image URLs:', validUrls);
+      }
+    }
+
+    // Step 3: Insert new images into database
+    if (uploadedImageUrls.length > 0) {
+      const getMaxOrderQuery = `
+        SELECT NVL(MAX(DISPLAY_ORDER), 0) as maxOrder FROM PRODUCT_IMAGES WHERE ITEM_ID = :itemId
+      `;
+      
+      const orderResult = await connection.execute(getMaxOrderQuery, [ProductId]);
+      let displayOrder = (orderResult.rows[0]?.[0] || 0) + 1;
+
+      for (const imageUrl of uploadedImageUrls) {
+        const insertImageQuery = `
+          INSERT INTO PRODUCT_IMAGES (IMAGE_ID, ITEM_ID, IMAGE_URL, DISPLAY_ORDER, IS_PRIMARY)
+          VALUES (image_seq.NEXTVAL, :itemId, :imageUrl, :displayOrder, 'N')
+        `;
+
+        await connection.execute(insertImageQuery, {
+          itemId: ProductId,
+          imageUrl: imageUrl,
+          displayOrder: displayOrder++
+        }, { autoCommit: false });
+      }
+    }
+
+    // Step 4: Update product fields based on product type
+    const updateFields = [];
+    const updateParams = { itemId: ProductId };
+
+    // Common fields for all product types
+    if (formData.title !== undefined) {
+      updateFields.push('TITLE = :title');
+      updateParams.title = formData.title.trim();
+    }
+    if (formData.description !== undefined) {
+      updateFields.push('DESCRIPTION = :description');
+      updateParams.description = formData.description.trim();
+    }
+    if (formData.category !== undefined) {
+      updateFields.push('CATEGORY = :category');
+      updateParams.category = formData.category;
+    }
+
+    // DIRECT_SELL specific fields
+    if (productType === 'DIRECT_SELL') {
+      if (formData.stock !== undefined) {
+        updateFields.push('STOCK = :stock');
+        updateParams.stock = parseInt(formData.stock) || 1;
+      }
+      if (formData.amount !== undefined) {
+        updateFields.push('AMOUNT = :amount');
+        updateParams.amount = parseFloat(formData.amount) || 0;
+      }
+    }
+
+    // AUCTION/REGISTRATION specific fields
+    if (productType === 'AUCTION' || productType === 'REGISTRATION') {
+      if (formData.starting_price !== undefined && formData.starting_price !== '') {
+        updateFields.push('STARTING_PRICE = :startingPrice');
+        updateParams.startingPrice = parseFloat(formData.starting_price);
+      }
+      if (formData.start_time !== undefined && formData.start_time !== '') {
+        updateFields.push('START_TIME = TO_TIMESTAMP(:startTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+        updateParams.startTime = formData.start_time;
+      }
+      if (formData.end_time !== undefined && formData.end_time !== '') {
+        updateFields.push('END_TIME = TO_TIMESTAMP(:endTime, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+        updateParams.endTime = formData.end_time;
+      }
+      if (formData.registration_end !== undefined && formData.registration_end !== '') {
+        updateFields.push('REGISTRATION_END = TO_TIMESTAMP(:registrationEnd, \'YYYY-MM-DD"T"HH24:MI:SS\')');
+        updateParams.registrationEnd = formData.registration_end;
+      }
+    }
+
+    // Always update UPDATED_AT
+    updateFields.push('UPDATED_AT = SYSTIMESTAMP');
+
+    if (updateFields.length === 1) { // Only UPDATED_AT
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update'
+      });
+    }
+
+    const updateQuery = `UPDATE PRODUCTS SET ${updateFields.join(', ')} WHERE ITEM_ID = :itemId`;
+    const updateResult = await connection.execute(updateQuery, updateParams, { autoCommit: false });
+
+    if (updateResult.rowsAffected === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to update product'
+      });
+    }
+
+    // Commit all changes
+    await connection.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Product updated successfully',
+      data: {
+        productId: ProductId,
+        productType: productType,
+        uploadedImages: uploadedImageUrls.length,
+        deletedImages: deletedImageUrls.length,
+        updatedFields: updateFields.length - 1
+      }
+    });
+
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackErr) {
+        console.error('Rollback error:', rollbackErr);
+      }
+    }
+
+    console.error('Edit product error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update product'
+    });
+
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error('Connection close error:', closeErr);
+      }
+    }
+  }
+}
 
 
 

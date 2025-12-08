@@ -105,6 +105,32 @@ function BidHistoryModal({ isOpen, onClose, listing }) {
                 <X className="w-6 h-6 text-white" />
               </button>
             </div>
+             {bidHistory.length > 0 && (
+            <div className=" border-white/10 p-4">
+              <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                <div>
+                  <p className="text-white/60 mb-1">Highest Bid</p>
+                  <p className="text-white font-bold text-lg">
+                    रु{Math.max(...bidHistory.map(b => b.bidAmount)).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-white/60 mb-1">Unique Bidders</p>
+                  <p className="text-white font-bold text-lg">
+                    {new Set(bidHistory.map(b => b.bidderName)).size}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-white/60 mb-1">Avg Increment</p>
+                  <p className="text-white font-bold text-lg">
+                    रु{bidHistory.length > 1
+                      ? Math.round((Math.max(...bidHistory.map(b => b.bidAmount)) - listing?.startingPrice) / (bidHistory.length - 1)).toLocaleString()
+                      : 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           </div>
 
           {/* Content */}
@@ -195,7 +221,7 @@ function BidHistoryModal({ isOpen, onClose, listing }) {
             )}
           </div>
 
-          {/* Footer Stats */}
+          {/* Footer Stats
           {bidHistory.length > 0 && (
             <div className="bg-white/5 border-t border-white/10 p-4">
               <div className="grid grid-cols-3 gap-4 text-center text-sm">
@@ -221,7 +247,7 @@ function BidHistoryModal({ isOpen, onClose, listing }) {
                 </div>
               </div>
             </div>
-          )}
+          )} */}
         </motion.div>
       </motion.div>
     </AnimatePresence>
