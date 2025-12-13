@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ArrowUpRight, Check, Loader, AlertCircle } from 'lucide-react';
+import { Plus, ArrowUpRight, Check, Loader, AlertCircle, MoveLeft } from 'lucide-react';
 import api from '../../API/api.js';
+import { NavLink } from 'react-router-dom';
 
 export default function WalletPage() {
   const [activeTab, setActiveTab] = useState('topup');
@@ -115,6 +116,20 @@ export default function WalletPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-6">
       <div className="max-w-4xl mx-auto">
+          <motion.div 
+        className='absolute top-6 left-6'
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <NavLink
+          to="/"
+          className='flex items-center gap-2 text-white/80 hover:text-cyan-300 transition-all duration-300 group'
+        >
+          <MoveLeft className='h-5 w-5 group-hover:-translate-x-1 transition-transform duration-300' />
+          Back to Home
+        </NavLink>
+      </motion.div>
         {/* Header */}
         <motion.div
           className="mb-8"

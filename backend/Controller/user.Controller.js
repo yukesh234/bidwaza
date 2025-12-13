@@ -1660,3 +1660,535 @@ export async function updateName(req,res)
     });
   }
 }
+
+
+export async function getBiddedProducts(req, res) {
+  let connection;
+  
+  try {
+    const userId = req.user.ID;
+    console.log("Fetching bidded products for user ID:", userId);
+    
+    connection = await getConnection();
+    
+    // First, let's test if the user has any bids at all
+    const testQuery = `
+      SELECT COUNT(*) as bid_count
+      FROM BIDS
+      WHERE USER_ID = :userId AND BID_STATUS = 'ACTIVE'
+    `;
+    
+    const testResult = await connection.execute(testQuery, { userId });
+    console.log("User has", testResult.rows[0][0], "active bids");
+    
+    if (testResult.rows[0][0] === 0) {
+      return res.json({
+        success: true,
+        message: "No bidded products found",
+        data: {
+          products: [],
+          summary: {
+            total: 0,
+            winning: 0,
+            outbid: 0,
+            won: 0,
+            lost: 0,
+            pending: 0
+          }
+        }
+      });
+    }
+    
+    // Main query - simplified with unique parameter names
+    const query = `
+      SELECT 
+        p.ITEM_ID,
+        p.TITLE,
+        p.DESCRIPTION,
+        p.CATEGORY,
+        p.PRODUCT_TYPE,
+        p.STARTING_PRICE,
+        p.CURRENT_PRICE,
+        p.START_TIME,
+        p.END_TIME,
+        p.REGISTRATION_END,
+        p.STATUS as PRODUCT_STATUS,
+        p.SELLER_ID,
+        
+        -- User's highest bid on this product (index 12-14)
+        user_bid.MAX_BID_AMOUNT as USER_MAX_BID,
+        user_bid.TOTAL_BIDS as USER_TOTAL_BIDS,
+        user_bid.LAST_BID_TIME,
+        
+        -- Current highest bid info (index 15-17)
+        highest_bid.BID_AMOUNT as HIGHEST_BID_AMOUNT,
+        highest_bid.USER_ID as HIGHEST_BIDDER_ID,
+        highest_bid.BIDDER_NAME as HIGHEST_BIDDER_NAME,
+        
+        -- Winner info (if auction ended) (index 18-20)
+        aw.USER_ID as WINNER_ID,
+        aw.WINNING_BID,
+        aw.PAYMENT_STATUS as WINNER_PAYMENT_STATUS,
+        
+        -- Seller info (index 21-22)
+        u.FIRST_NAME || ' ' || u.LAST_NAME as SELLER_NAME,
+        u.PROFILE_PICTURE_URL as SELLER_PROFILE_PICTURE,
+        
+        -- Calculate bid status (index 23)
+        CASE
+          WHEN p.START_TIME > SYSTIMESTAMP THEN 'PENDING'
+          WHEN p.END_TIME < SYSTIMESTAMP AND aw.USER_ID = :userId1 THEN 'WON'
+          WHEN p.END_TIME < SYSTIMESTAMP AND (aw.USER_ID IS NULL OR aw.USER_ID != :userId2) THEN 'LOST'
+          WHEN p.START_TIME <= SYSTIMESTAMP 
+            AND p.END_TIME > SYSTIMESTAMP 
+            AND highest_bid.USER_ID = :userId3 THEN 'WINNING'
+          WHEN p.START_TIME <= SYSTIMESTAMP 
+            AND p.END_TIME > SYSTIMESTAMP 
+            AND (highest_bid.USER_ID IS NULL OR highest_bid.USER_ID != :userId4) THEN 'OUTBID'
+          ELSE 'UNKNOWN'
+        END as BID_STATUS
+        
+      FROM PRODUCTS p
+      
+      -- Get user's bid info
+      INNER JOIN (
+        SELECT 
+          b.ITEM_ID,
+          MAX(b.BID_AMOUNT) as MAX_BID_AMOUNT,
+          COUNT(*) as TOTAL_BIDS,
+          MAX(b.CREATED_AT) as LAST_BID_TIME
+        FROM BIDS b
+        WHERE b.USER_ID = :userId5
+          AND b.BID_STATUS = 'ACTIVE'
+        GROUP BY b.ITEM_ID
+      ) user_bid ON p.ITEM_ID = user_bid.ITEM_ID
+      
+      -- Get current highest bid
+      LEFT JOIN (
+        SELECT 
+          b.ITEM_ID,
+          b.BID_AMOUNT,
+          b.USER_ID,
+          u.FIRST_NAME || ' ' || u.LAST_NAME as BIDDER_NAME
+        FROM BIDS b
+        INNER JOIN USERS u ON b.USER_ID = u.ID
+        WHERE b.BID_STATUS = 'ACTIVE'
+          AND (b.ITEM_ID, b.BID_AMOUNT) IN (
+            SELECT ITEM_ID, MAX(BID_AMOUNT)
+            FROM BIDS
+            WHERE BID_STATUS = 'ACTIVE'
+            GROUP BY ITEM_ID
+          )
+      ) highest_bid ON p.ITEM_ID = highest_bid.ITEM_ID
+      
+      -- Get winner info if exists
+      LEFT JOIN AUCTION_WINNERS aw ON p.ITEM_ID = aw.ITEM_ID
+      
+      -- Get seller info
+      LEFT JOIN USERS u ON p.SELLER_ID = u.ID
+      
+      WHERE p.PRODUCT_TYPE IN ('AUCTION', 'REGISTRATION')
+      ORDER BY 
+        CASE 
+          WHEN p.END_TIME > SYSTIMESTAMP THEN 1
+          ELSE 2
+        END,
+        p.END_TIME ASC
+    `;
+    
+    // Bind all userId parameters
+    const bindParams = {
+      userId1: userId,
+      userId2: userId,
+      userId3: userId,
+      userId4: userId,
+      userId5: userId
+    };
+    
+    const result = await connection.execute(query, bindParams);
+    
+    console.log("Query returned", result.rows?.length || 0, "rows");
+    
+    if (!result.rows || result.rows.length === 0) {
+      return res.json({
+        success: true,
+        message: "No bidded products found",
+        data: {
+          products: [],
+          summary: {
+            total: 0,
+            winning: 0,
+            outbid: 0,
+            won: 0,
+            lost: 0,
+            pending: 0
+          }
+        }
+      });
+    }
+    
+    // Process the results
+    const products = [];
+    const summary = {
+      total: 0,
+      winning: 0,
+      outbid: 0,
+      won: 0,
+      lost: 0,
+      pending: 0
+    };
+    
+    for (const row of result.rows) {
+      const itemId = row[0];
+      
+      // Get product images
+      const imageQuery = `
+        SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER
+        FROM PRODUCT_IMAGES
+        WHERE ITEM_ID = :itemId
+        ORDER BY 
+          CASE WHEN IS_PRIMARY = 'Y' THEN 0 ELSE 1 END,
+          DISPLAY_ORDER ASC
+      `;
+      
+      const imageResult = await connection.execute(imageQuery, { itemId });
+      const images = imageResult.rows.map(img => ({
+        url: img[0],
+        isPrimary: img[1] === 'Y',
+        displayOrder: img[2]
+      }));
+      
+      const bidStatus = row[23]; // BID_STATUS column
+      const startTime = row[7];
+      const endTime = row[8];
+      const now = new Date();
+      
+      const product = {
+        itemId: row[0],
+        title: row[1],
+        description: row[2],
+        category: row[3],
+        productType: row[4],
+        startingPrice: row[5],
+        currentPrice: row[6],
+        startTime: startTime,
+        endTime: endTime,
+        registrationEnd: row[9],
+        productStatus: row[10],
+        seller: {
+          id: row[11],
+          name: row[21],      // FIXED: was row[18]
+          profilePicture: row[22]  // FIXED: was row[19]
+        },
+        userBidInfo: {
+          maxBid: row[12],
+          totalBids: row[13],
+          lastBidTime: row[14]
+        },
+        currentHighestBid: {
+          amount: row[15],
+          bidderId: row[16],
+          bidderName: row[17]
+        },
+        winner: row[18] ? {    // FIXED: was row[20]
+          userId: row[18],
+          winningBid: row[19], // FIXED: was row[21]
+          paymentStatus: row[20]  // FIXED: was row[22]
+        } : null,
+        bidStatus: bidStatus,
+        images: images,
+        // Helper properties
+        isWinning: bidStatus === 'WINNING',
+        isOutbid: bidStatus === 'OUTBID',
+        hasWon: bidStatus === 'WON',
+        hasLost: bidStatus === 'LOST',
+        isPending: bidStatus === 'PENDING',
+        isActive: new Date(startTime) <= now && new Date(endTime) > now,
+        timeRemaining: new Date(endTime) > now ? new Date(endTime) - now : 0
+      };
+      
+      products.push(product);
+      
+      // Update summary
+      summary.total++;
+      switch (bidStatus) {
+        case 'WINNING':
+          summary.winning++;
+          break;
+        case 'OUTBID':
+          summary.outbid++;
+          break;
+        case 'WON':
+          summary.won++;
+          break;
+        case 'LOST':
+          summary.lost++;
+          break;
+        case 'PENDING':
+          summary.pending++;
+          break;
+      }
+    }
+
+    console.log("Bidded products summary:", summary);
+    console.log("Total bidded products:", products.length);
+    
+    return res.json({
+      success: true,
+      message: "Bidded products retrieved successfully",
+      data: {
+        products,
+        summary
+      }
+    });
+    
+  } catch (error) {
+    console.error("Get bidded products error:", error);
+    console.error("Error stack:", error.stack);
+    return res.status(500).json({
+      message: "Failed to get bidded products",
+      success: false,
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error("Error closing connection:", err);
+      }
+    }
+  }
+}
+
+// Optional: Get bidded products with filtering
+export async function getBiddedProductsFiltered(req, res) {
+  let connection;
+  
+  try {
+    const userId = req.user.ID;
+    const { status, productType, sortBy } = req.query;
+    
+    // Build dynamic WHERE clause
+    let whereConditions = ['p.PRODUCT_TYPE IN (\'AUCTION\', \'REGISTRATION\')'];
+    
+    if (productType) {
+      whereConditions.push(`p.PRODUCT_TYPE = '${productType}'`);
+    }
+    
+    // Build ORDER BY clause
+    let orderBy = `
+      CASE 
+        WHEN p.END_TIME > SYSTIMESTAMP THEN 1
+        ELSE 2
+      END,
+      p.END_TIME ASC
+    `;
+    
+    if (sortBy === 'recent') {
+      orderBy = 'user_bid.LAST_BID_TIME DESC';
+    } else if (sortBy === 'ending_soon') {
+      orderBy = 'p.END_TIME ASC';
+    } else if (sortBy === 'highest_bid') {
+      orderBy = 'user_bid.MAX_BID_AMOUNT DESC';
+    }
+    
+    connection = await getConnection();
+    
+    const query = `
+      SELECT 
+        p.ITEM_ID,
+        p.TITLE,
+        p.DESCRIPTION,
+        p.CATEGORY,
+        p.PRODUCT_TYPE,
+        p.STARTING_PRICE,
+        p.CURRENT_PRICE,
+        p.START_TIME,
+        p.END_TIME,
+        p.REGISTRATION_END,
+        p.STATUS as PRODUCT_STATUS,
+        p.SELLER_ID,
+        user_bid.MAX_BID_AMOUNT as USER_MAX_BID,
+        user_bid.TOTAL_BIDS as USER_TOTAL_BIDS,
+        user_bid.LAST_BID_TIME,
+        highest_bid.BID_AMOUNT as HIGHEST_BID_AMOUNT,
+        highest_bid.USER_ID as HIGHEST_BIDDER_ID,
+        highest_bid.BIDDER_NAME as HIGHEST_BIDDER_NAME,
+        aw.USER_ID as WINNER_ID,
+        aw.WINNING_BID,
+        aw.PAYMENT_STATUS as WINNER_PAYMENT_STATUS,
+        u.FIRST_NAME || ' ' || u.LAST_NAME as SELLER_NAME,
+        u.PROFILE_PICTURE_URL as SELLER_PROFILE_PICTURE,
+        CASE
+          WHEN p.START_TIME > SYSTIMESTAMP THEN 'PENDING'
+          WHEN p.END_TIME < SYSTIMESTAMP AND aw.USER_ID = :userId THEN 'WON'
+          WHEN p.END_TIME < SYSTIMESTAMP AND (aw.USER_ID IS NULL OR aw.USER_ID != :userId) THEN 'LOST'
+          WHEN p.START_TIME <= SYSTIMESTAMP 
+            AND p.END_TIME > SYSTIMESTAMP 
+            AND highest_bid.USER_ID = :userId THEN 'WINNING'
+          WHEN p.START_TIME <= SYSTIMESTAMP 
+            AND p.END_TIME > SYSTIMESTAMP 
+            AND (highest_bid.USER_ID IS NULL OR highest_bid.USER_ID != :userId) THEN 'OUTBID'
+          ELSE 'UNKNOWN'
+        END as BID_STATUS
+      FROM PRODUCTS p
+      INNER JOIN (
+        SELECT 
+          b.ITEM_ID,
+          MAX(b.BID_AMOUNT) as MAX_BID_AMOUNT,
+          COUNT(*) as TOTAL_BIDS,
+          MAX(b.CREATED_AT) as LAST_BID_TIME
+        FROM BIDS b
+        WHERE b.USER_ID = :userId
+          AND b.BID_STATUS = 'ACTIVE'
+        GROUP BY b.ITEM_ID
+      ) user_bid ON p.ITEM_ID = user_bid.ITEM_ID
+      LEFT JOIN (
+        SELECT 
+          b.ITEM_ID,
+          b.BID_AMOUNT,
+          b.USER_ID,
+          u.FIRST_NAME || ' ' || u.LAST_NAME as BIDDER_NAME
+        FROM BIDS b
+        INNER JOIN USERS u ON b.USER_ID = u.ID
+        WHERE b.BID_STATUS = 'ACTIVE'
+          AND (b.ITEM_ID, b.BID_AMOUNT) IN (
+            SELECT ITEM_ID, MAX(BID_AMOUNT)
+            FROM BIDS
+            WHERE BID_STATUS = 'ACTIVE'
+            GROUP BY ITEM_ID
+          )
+      ) highest_bid ON p.ITEM_ID = highest_bid.ITEM_ID
+      LEFT JOIN AUCTION_WINNERS aw ON p.ITEM_ID = aw.ITEM_ID
+      LEFT JOIN USERS u ON p.SELLER_ID = u.ID
+      WHERE ${whereConditions.join(' AND ')}
+      ${status ? `HAVING BID_STATUS = '${status.toUpperCase()}'` : ''}
+      ORDER BY ${orderBy}
+    `;
+    
+    const result = await connection.execute(query, { userId });
+    
+    // Process results (same as above)
+    const products = [];
+    const summary = {
+      total: 0,
+      winning: 0,
+      outbid: 0,
+      won: 0,
+      lost: 0,
+      pending: 0
+    };
+    
+    for (const row of result.rows) {
+      const itemId = row[0];
+      
+      const imageQuery = `
+        SELECT IMAGE_URL, IS_PRIMARY, DISPLAY_ORDER
+        FROM PRODUCT_IMAGES
+        WHERE ITEM_ID = :itemId
+        ORDER BY 
+          CASE WHEN IS_PRIMARY = 'Y' THEN 0 ELSE 1 END,
+          DISPLAY_ORDER ASC
+      `;
+      
+      const imageResult = await connection.execute(imageQuery, { itemId });
+      const images = imageResult.rows.map(img => ({
+        url: img[0],
+        isPrimary: img[1] === 'Y',
+        displayOrder: img[2]
+      }));
+      
+      const bidStatus = row[23];
+      
+      const product = {
+        itemId: row[0],
+        title: row[1],
+        description: row[2],
+        category: row[3],
+        productType: row[4],
+        startingPrice: row[5],
+        currentPrice: row[6],
+        startTime: row[7],
+        endTime: row[8],
+        registrationEnd: row[9],
+        productStatus: row[10],
+        seller: {
+          id: row[11],
+          name: row[21],
+          profilePicture: row[22]
+        },
+        userBidInfo: {
+          maxBid: row[12],
+          totalBids: row[13],
+          lastBidTime: row[14]
+        },
+        currentHighestBid: {
+          amount: row[15],
+          bidderId: row[16],
+          bidderName: row[17]
+        },
+        winner: row[18] ? {
+          userId: row[18],
+          winningBid: row[19],
+          paymentStatus: row[20]
+        } : null,
+        bidStatus: bidStatus,
+        images: images,
+        isWinning: bidStatus === 'WINNING',
+        isOutbid: bidStatus === 'OUTBID',
+        hasWon: bidStatus === 'WON',
+        hasLost: bidStatus === 'LOST',
+        isPending: bidStatus === 'PENDING',
+        isActive: row[7] <= new Date() && row[8] > new Date(),
+        timeRemaining: row[8] > new Date() ? new Date(row[8]) - new Date() : 0
+      };
+      
+      products.push(product);
+      
+      summary.total++;
+      switch (bidStatus) {
+        case 'WINNING':
+          summary.winning++;
+          break;
+        case 'OUTBID':
+          summary.outbid++;
+          break;
+        case 'WON':
+          summary.won++;
+          break;
+        case 'LOST':
+          summary.lost++;
+          break;
+        case 'PENDING':
+          summary.pending++;
+          break;
+      }
+    }
+    
+    return res.json({
+      success: true,
+      message: "Bidded products retrieved successfully",
+      data: {
+        products,
+        summary
+      }
+    });
+    
+  } catch (error) {
+    console.error("Get bidded products filtered error:", error);
+    return res.status(500).json({
+      message: "Failed to get bidded products",
+      success: false,
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error("Error closing connection:", err);
+      }
+    }
+  }
+}

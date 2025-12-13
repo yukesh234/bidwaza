@@ -22,11 +22,8 @@ import Profile from './Pages/buyer/Profile.jsx'
 import ForgetPassword from './Pages/ForgetPassword.jsx'
 import VerifyPasswordReset from './Pages/VerifyPasswordReset.jsx'
 import ResetPassword from './Pages/ResetPassword.jsx'
-import { useAuth } from './Context/Authcontext.jsx'
-
+import MyBidsPage from './Pages/buyer/Mybidspage.jsx'
 function App() {
-  const { isAuthenticated } = useAuth();
-
   return (
     <>
       <Routes>
@@ -46,31 +43,14 @@ function App() {
           <Route path='/reset-password' element={<ResetPassword />} />
         </Route>
 
-        {/* Protected Buyer Routes */}
-        <Route 
-          path="/cart" 
-          element={isAuthenticated ? <Cart /> : <Navigate to="/login" replace />} 
-        />
-        <Route 
-          path="/orders" 
-          element={isAuthenticated ? <Orders /> : <Navigate to="/login" replace />} 
-        />
-        <Route 
-          path="/profile" 
-          element={isAuthenticated ? <Profile /> : <Navigate to="/login" replace />} 
-        />
-        <Route 
-          path="/wallet" 
-          element={isAuthenticated ? <WalletPage /> : <Navigate to="/login" replace />} 
-        />
-        <Route 
-          path="/wallet/success" 
-          element={isAuthenticated ? <WalletSuccess /> : <Navigate to="/login" replace />} 
-        />
-        <Route 
-          path="/wallet/failure" 
-          element={isAuthenticated ? <WalletFailure /> : <Navigate to="/login" replace />} 
-        />
+        {/* Buyer Routes - No authentication check */}
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/wallet" element={<WalletPage />} />
+        <Route path="/wallet/success" element={<WalletSuccess />} />
+        <Route path="/wallet/failure" element={<WalletFailure />} />
+        <Route path='/mybids' element={<MyBidsPage/>}/>
 
         {/* Public Product Routes */}
         <Route path="/product/:productId" element={<BuyProduct />} />

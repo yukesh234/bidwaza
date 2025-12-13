@@ -282,7 +282,7 @@ class AuctionService {
       } finally {
         this.pendingAutoBids.delete(key);
       }
-    }, 10000); // 10 seconds delay
+    }, 3000); // 3 seconds delay
 
     this.pendingAutoBids.set(key, timeoutId);
     console.log(`⏰ Scheduled auto-bid check for item ${itemId} in 10 seconds`);

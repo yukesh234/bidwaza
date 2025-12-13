@@ -129,51 +129,94 @@ export async function getmyBids(req,res)
   }
 }
 
-export async function getwins(req,res)
-{
-      try {
-        const userId = req.user.ID;
-        const oracledb = await import('oracledb');
-        const { getConnection } = await import('../Db/Db.js');
-        
-        const connection = await getConnection();
+export async function getwins(req, res) {
+  let connection;
+  try {
+    const userId = req.user.ID;
+    console.log('🏆 Fetching wins for user:', userId);
     
-        const result = await connection.execute(
-          `SELECT aw.winner_id, aw.item_id, aw.winning_bid, aw.payment_status, aw.created_at,
-                  p.title, p.description,
-                  pi.image_url
-           FROM auction_winners aw
-           JOIN products p ON aw.item_id = p.item_id
-           LEFT JOIN product_images pi ON p.item_id = pi.item_id AND pi.is_primary = 'Y'
-           WHERE aw.user_id = :userId
-           ORDER BY aw.created_at DESC`,
-          { userId }
-        );
+    const oracledb = await import('oracledb');
+    const { getConnection } = await import('../Db/Db.js');
     
-        const wins = result.rows.map(row => ({
-          winnerId: row[0],
-          itemId: row[1],
-          winningBid: row[2],
-          paymentStatus: row[3],
-          createdAt: row[4],
-          productTitle: row[5],
-          productDescription: row[6],
-          imageUrl: row[7]
-        }));
-    
-        await connection.close();
-    
-        res.json({
-          success: true,
-          data: wins
-        });
-      } catch (error) {
-        console.error('Error getting user wins:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to get user wins'
-        });
+    connection = await getConnection();
+
+    // First, let's verify the user has wins
+    const countResult = await connection.execute(
+      `SELECT COUNT(*) as count FROM auction_winners WHERE user_id = :userId`,
+      { userId }
+    );
+    console.log('Win count for user:', countResult.rows[0][0]);
+
+    const result = await connection.execute(
+      `SELECT aw.winner_id, aw.item_id, aw.winning_bid, aw.payment_status, aw.created_at,
+              p.title, p.description,
+              pi.image_url
+       FROM auction_winners aw
+       JOIN products p ON aw.item_id = p.item_id
+       LEFT JOIN product_images pi ON p.item_id = pi.item_id AND pi.is_primary = 'Y'
+       WHERE aw.user_id = :userId
+       ORDER BY aw.created_at DESC`,
+      { userId }
+    );
+
+    console.log('Raw query result rows:', result.rows.length);
+
+    // Process results - Oracle returns data as arrays by index
+    const wins = await Promise.all(result.rows.map(async (row) => {
+      let description = null;
+      
+      // row[6] is the DESCRIPTION column (CLOB)
+      if (row[6]) {
+        try {
+          if (typeof row[6].getData === 'function') {
+            description = await row[6].getData();
+          } else {
+            description = row[6];
+          }
+        } catch (err) {
+          console.error('Error reading CLOB:', err);
+          description = null;
+        }
       }
+
+      const winObject = {
+        winnerId: row[0],        // aw.winner_id
+        itemId: row[1],          // aw.item_id
+        winningBid: row[2],      // aw.winning_bid
+        paymentStatus: row[3],   // aw.payment_status
+        createdAt: row[4],       // aw.created_at
+        productTitle: row[5],    // p.title
+        productDescription: description,  // p.description (CLOB)
+        imageUrl: row[7]         // pi.image_url
+      };
+
+      return winObject;
+    }));
+
+    console.log('✅ Processed wins:', wins.length);
+
+    res.json({
+      success: true,
+      data: wins
+    });
+  } catch (error) {
+    console.error('❌ Error getting user wins:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get user wins',
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Error closing connection:', err);
+      }
+    }
+  }
 }
 
 export async function getNotifications(req,res)
