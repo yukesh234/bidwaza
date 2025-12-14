@@ -480,21 +480,29 @@ function ComprehensiveAnalytics({ stats }) {
                 <AreaChart data={productPerformanceData}>
                   <defs>
                     <linearGradient id="colorProduct1" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05}/>
                     </linearGradient>
                     <linearGradient id="colorProduct2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#d946ef" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#d946ef" stopOpacity={0.05}/>
                     </linearGradient>
                     <linearGradient id="colorProduct3" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05}/>
+                    </linearGradient>
+                    <linearGradient id="colorProduct4" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05}/>
+                    </linearGradient>
+                    <linearGradient id="colorProduct5" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="month" stroke="rgba(255,255,255,0.6)" />
-                  <YAxis stroke="rgba(255,255,255,0.6)" />
+                  <XAxis dataKey="month" stroke="rgba(255,255,255,0.6)" tick={{ fill: 'rgba(255,255,255,0.7)' }} />
+                  <YAxis stroke="rgba(255,255,255,0.6)" tick={{ fill: 'rgba(255,255,255,0.7)' }} />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: 'rgba(15, 23, 42, 0.95)', 
@@ -510,18 +518,21 @@ function ComprehensiveAnalytics({ stats }) {
                   {/* Dynamically render areas for each product */}
                   {productPerformanceData[0] && Object.keys(productPerformanceData[0])
                     .filter(key => key !== 'month')
-                    .map((key, index) => (
-                      !hiddenProducts[key] && (
+                    .map((key, index) => {
+                      const colors = ['#06b6d4', '#d946ef', '#22c55e', '#f59e0b', '#ef4444'];
+                      const colorIndex = index % colors.length;
+                      return !hiddenProducts[key] && (
                         <Area 
                           key={key}
                           type="monotone" 
                           dataKey={key} 
-                          stroke={['#3b82f6', '#a855f7', '#10b981'][index % 3]} 
+                          stroke={colors[colorIndex]} 
+                          strokeWidth={2}
                           fillOpacity={1} 
-                          fill={`url(#colorProduct${(index % 3) + 1})`} 
+                          fill={`url(#colorProduct${colorIndex + 1})`} 
                         />
-                      )
-                    ))
+                      );
+                    })
                   }
                 </AreaChart>
               </ResponsiveContainer>
@@ -552,20 +563,20 @@ function ComprehensiveAnalytics({ stats }) {
           </div>
           {categoryData.length > 0 ? (
             <div data-chart="category-revenue">
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={categoryData}
                     cx="50%"
-                    cy="50%"
+                    cy="45%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={100}
+                    label={false}
+                    outerRadius={90}
                     fill="#8884d8"
                     dataKey="value"
                   >
                     {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                     ))}
                   </Pie>
                   <Tooltip 
@@ -577,10 +588,27 @@ function ComprehensiveAnalytics({ stats }) {
                     }}
                     itemStyle={{ color: '#fff' }}
                     labelStyle={{ color: '#fff' }}
-                    formatter={(value) => `रु${value.toLocaleString()}`}
+                    formatter={(value, name) => [`रु${value.toLocaleString()}`, name]}
                   />
                 </PieChart>
               </ResponsiveContainer>
+              {/* Custom Legend for Pie Chart */}
+              <div className="flex flex-wrap justify-center gap-4 mt-2">
+                {categoryData.map((entry, index) => (
+                  <div key={`legend-${index}`} className="flex items-center gap-2">
+                    <div
+                      className="w-4 h-4 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: entry.color }}
+                    />
+                    <div className="text-left">
+                      <span className="text-white text-sm font-medium block">{entry.name}</span>
+                      <span className="text-white/60 text-xs">
+                        {((entry.value / categoryData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="h-64 flex items-center justify-center text-white/40">
