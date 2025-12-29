@@ -3,9 +3,10 @@ import { motion } from 'framer-motion';
 import { 
   Trophy, DollarSign, Calendar, 
   CheckCircle, Clock, XCircle, AlertCircle,
-  Search, Eye, RefreshCw, CreditCard
+  Search, Eye, RefreshCw, CreditCard,
+  MoveLeft
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../../API/api';
 import toast from 'react-hot-toast';
 
@@ -195,6 +196,21 @@ const MyWinsPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white pt-24 pb-12 px-6">
       <div className="max-w-7xl mx-auto">
+         {/* Back button */}
+      <motion.div 
+        className='absolute top-6 left-6'
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <NavLink
+          to="/"
+          className='flex items-center gap-2 text-white/80 hover:text-cyan-300 transition-all duration-300 group'
+        >
+          <MoveLeft className='h-5 w-5 group-hover:-translate-x-1 transition-transform duration-300' />
+          Back to Home
+        </NavLink>
+      </motion.div>
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
@@ -304,7 +320,7 @@ const MyWinsPage = () => {
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">Winning Bid</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">Payment Status</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">Won Date</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">Actions</th>
+                    {/* <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">Actions</th> */}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
@@ -350,26 +366,7 @@ const MyWinsPage = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleViewProduct(win.itemId)}
-                            className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-all duration-300"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </button>
-                          {(!win.paymentStatus || win.paymentStatus === 'PENDING') && (
-                            <button
-                              onClick={() => handlePayment(win.itemId, win.winningBid)}
-                              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300"
-                            >
-                              <CreditCard className="w-4 h-4" />
-                              Pay Now
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                     
                     </motion.tr>
                   ))}
                 </tbody>

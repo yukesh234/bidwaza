@@ -1,9 +1,27 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { BarChart3, Package, TrendingUp, MessageCircle, Settings } from "lucide-react"
 import { Link, useLocation } from 'react-router-dom'
+import {getOrdercount} from '../../services/sellerservices.js'
 
 function SellerSidebar() {
   const location = useLocation()
+  const [orderCount, setorderCount] = useState(null);
+
+  useEffect(()=>{
+    const fetchordercount = async ()=>{ 
+      const response = await getOrdercount();
+      if(response.success){
+        setorderCount(response?.ordercount)
+      }
+      else{
+        console.log("something happened")
+      }
+    }
+
+    fetchordercount();
+    const interval = setInterval(fetchordercount, 3000);
+    return () => clearInterval(interval);
+  },[])
   
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3, path: '/seller/overview' },
@@ -27,7 +45,12 @@ function SellerSidebar() {
           }`}
         >
           <tab.icon className='w-5 h-5' />
-          {tab.label}
+          <span className="flex-1">{tab.label}</span>
+          {tab.id === 'orders' && orderCount !== null && orderCount > 0 && (
+            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-cyan-500 text-white">
+              {orderCount}
+            </span>
+          )}
         </Link>
       ))}
     </aside>

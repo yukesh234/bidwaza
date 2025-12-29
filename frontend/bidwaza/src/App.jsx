@@ -50,7 +50,7 @@ function App() {
         <Route path="/wallet" element={<WalletPage />} />
         <Route path="/wallet/success" element={<WalletSuccess />} />
         <Route path="/wallet/failure" element={<WalletFailure />} />
-        <Route path='/mybids' element={<MyBidsPage/>}/>
+        <Route path='/mywins' element={<MyBidsPage/>}/>
 
         {/* Public Product Routes */}
         <Route path="/product/:productId" element={<BuyProduct />} />

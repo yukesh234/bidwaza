@@ -285,7 +285,7 @@ function Login() {
             </p>
           </motion.div>
 
-          {/* Divider */}
+          {/* Divider
           <motion.div 
             className='mt-6'
             initial={{ opacity: 0, scaleX: 0 }}
@@ -303,7 +303,7 @@ function Login() {
           </motion.div>
 
           {/* Social Login Buttons */}
-          <motion.div 
+          {/* <motion.div 
             className='mt-6 grid grid-cols-2 gap-3'
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -334,7 +334,7 @@ function Login() {
               </svg>
               <span className='ml-2'>Twitter</span>
             </motion.button>
-          </motion.div>
+          </motion.div>  */}
         </motion.div>
       </motion.div>
     </div>

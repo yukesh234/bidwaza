@@ -804,6 +804,38 @@ export async function updateOrderStatus(req, res)
 }
 
 
+export async function getordercount(req,res){
+  try {
+    let connection = await getConnection()
+    const sellerId = req.user.ID;
+    const pendingOrdersResult = await connection.execute(
+  `SELECT COUNT(DISTINCT o.ORDER_ID) AS PENDING_ORDER_COUNT
+   FROM orders o
+   INNER JOIN order_items oi ON o.ORDER_ID = oi.ORDER_ID
+   WHERE oi.SELLER_ID = :sellerId
+     AND o.ORDER_STATUS = 'PENDING'`,
+  { sellerId },
+  { outFormat: oracledb.OUT_FORMAT_OBJECT }
+);
+
+    const pendingOrderCount = pendingOrdersResult.rows[0].PENDING_ORDER_COUNT;
+    console.log(pendingOrderCount);
+
+    res.status(200).send({
+      success:true,
+      ordercount:pendingOrderCount
+    })
+
+  } catch (error) {
+    console.log("error while fetching the pending orders",error)
+    res.status(500).send({
+      success:false,
+      message:error
+    })
+  }
+}
+
+
 export async function updateStock(req, res) {
   const { newstock, item_id } = req.body;
   const sellerId = req.user.ID; // Get seller from auth token

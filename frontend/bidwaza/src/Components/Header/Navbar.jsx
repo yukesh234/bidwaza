@@ -10,7 +10,8 @@ import {
   Search,
   ShoppingCart,
   X,
-  Package
+  Package,
+  Crown
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getCart } from '../../services/userservices.js'
@@ -139,7 +140,7 @@ function Navbar() {
         }
 
         if (searchQuery.trim()) {
-            // console.log('⚡ Instant search (Enter pressed):', searchQuery.trim());
+            // console.log(' Instant search (Enter pressed):', searchQuery.trim());
             navigate(`/?search=${encodeURIComponent(searchQuery.trim())}`);
         } else {
             navigate('/');
@@ -177,6 +178,12 @@ function Navbar() {
             icon: Package,
             path: "/orders",
             description: "View order history"
+        },
+        {
+            name:"My wins",
+            icon:Crown,
+            path:"/mywins",
+            description: "View your wins"
         }
     ];
 

@@ -401,3 +401,20 @@ export const deleteProduct = async (productId) => {
     return { success:false, message: error.response?.data?.message || error.message || 'Failed to delete product'}
   }
 }
+
+export const getOrdercount = async()=>{
+  try {
+    const response = await api.get('/seller/ordercount')
+    if(response.data.success){
+      return {
+        success:true,
+        ordercount:response.data.ordercount
+      }
+    }
+  } catch (error) {
+    console.log("Error while fetching the order count ", error)
+        return {success:false,
+        count:0
+    }
+  }
+}
