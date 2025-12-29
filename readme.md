@@ -1,175 +1,546 @@
-# Bidwaza Backend Documentation
+# Bidwaza - Online Auction & E-Commerce Platform
 
-## Overview
-
-Bidwaza is an e-commerce backend built with Node.js, Express, and OracleDB. It provides RESTful APIs for user authentication, profile management, product operations, cart management, and email services. Authentication is handled via JWT cookies. All endpoints return JSON responses.
+A full-stack web application for conducting online auctions and buying/selling products with real-time bidding, seller dashboard, and integrated payment system.
 
 ---
 
-## Project Structure
+## 🌐 Project Overview
+
+Bidwaza is a comprehensive online auction and e-commerce platform featuring:
+- **Real-time Bidding System** with WebSocket support
+- **User Authentication** with email verification
+- **Seller Dashboard** with analytics and performance metrics
+- **Shopping Cart** and product management
+- **Integrated Payment Gateway** (eSeWa)
+- **Digital Wallet** system
+- **Auction History** and bid tracking
+
+---
+
+## 📁 Project Structure
 
 ```
-backend/
+bidwaza/
+├── backend/                          # Node.js/Express API server
+│   ├── Controller/                   # Request handlers
+│   │   ├── analytics.js             # Analytics logic
+│   │   ├── auction.Controller.js    # Auction bidding
+│   │   ├── auth.Controller.js       # Authentication
+│   │   ├── cart.Controller.js       # Shopping cart
+│   │   ├── esewa.Controller.js      # Payment gateway
+│   │   ├── seller.Controller.js     # Seller management
+│   │   ├── user.Controller.js       # User management
+│   │   └── wallet.Controller.js     # Wallet operations
+│   │
+│   ├── Routes/                       # API route definitions
+│   │   ├── auth.js                  # Authentication endpoints
+│   │   ├── auction.js               # Auction endpoints
+│   │   ├── cart.js                  # Cart endpoints
+│   │   ├── esewa.js                 # Payment endpoints
+│   │   ├── seller.js                # Seller endpoints
+│   │   ├── user.js                  # User endpoints
+│   │   ├── wallet.js                # Wallet endpoints
+│   │   └── analytics.js             # Analytics endpoints
+│   │
+│   ├── Service/                      # External services
+│   │   ├── auctionService.js        # Auction business logic
+│   │   ├── cloudinary.js            # Image upload service
+│   │   ├── emailService.js          # Email notifications
+│   │   └── generateEsewaSIgnature.js# Payment signature
+│   │
+│   ├── middleware/                   # Express middleware
+│   │   ├── auth.middleware.js       # JWT authentication
+│   │   └── multer.middleware.js     # File upload handling
+│   │
+│   ├── Db/                           # Database configuration
+│   │   └── Db.js                    # OracleDB connection
+│   │
+│   ├── utils/                        # Utility functions
+│   │   └── transporter.js           # Email configuration
+│   │
+│   ├── public/                       # Static files
+│   ├── .env                          # Environment variables
+│   ├── .gitignore                    # Git ignore rules
+│   ├── index.js                      # Entry point
+│   └── package.json                  # Dependencies
 │
-├── Controller/         # API logic for authentication, users, sellers, cart
-│   ├── auth.Controller.js
-│   ├── cart.Controller.js
-│   ├── seller.Controller.js
-│   └── user.Controller.js
-│
-├── Db/                 # Database connection logic
-│   └── Db.js
-│
-├── middleware/         # Express middleware (auth, file upload)
-│   ├── auth.middleware.js
-│   └── multer.middleware.js
-│
-├── public/             # Static/public files
-│   └── temp/
-│
-├── Routes/             # Route definitions
-│   ├── auth.js
-│   ├── cart.js
-│   ├── seller.js
-│   └── user.js
-│
-├── Service/            # External services (Cloudinary, Email)
-│   ├── cloudinary.js
-│   └── emailService.js
-│
-├── .env                # Environment variables
-├── .gitignore          # Git ignore file
-├── index.js            # Entry point
-└── package.json        # Dependencies and scripts
+└── frontend/
+    └── bidwaza/                      # React + Vite application
+        ├── src/
+        │   ├── Pages/                # Page components
+        │   │   ├── buyer/            # Buyer-specific pages
+        │   │   │   ├── Home.jsx      # Product listing
+        │   │   │   ├── Login.jsx
+        │   │   │   ├── Signup.jsx
+        │   │   │   ├── Verification.jsx
+        │   │   │   ├── Profile.jsx
+        │   │   │   ├── Cart.jsx
+        │   │   │   ├── BuyProduct.jsx
+        │   │   │   ├── Productinfo.jsx
+        │   │   │   ├── Orders.jsx
+        │   │   │   ├── Mybidspage.jsx
+        │   │   │   ├── Wallet.jsx
+        │   │   │   └── Uploadpfp.jsx
+        │   │   │
+        │   │   ├── seller/           # Seller-specific pages
+        │   │   │   ├── SellerDashboard.jsx
+        │   │   │   ├── Overview.jsx
+        │   │   │   ├── Listing.jsx
+        │   │   │   ├── Order.jsx
+        │   │   │   ├── ComprehensiveAnalytics.jsx
+        │   │   │   └── CommingSoon.jsx
+        │   │   │
+        │   │   ├── PaymentSuccess.jsx
+        │   │   ├── PaymentFailure.jsx
+        │   │   ├── ForgetPassword.jsx
+        │   │   ├── VerifyPasswordReset.jsx
+        │   │   └── ResetPassword.jsx
+        │   │
+        │   ├── Components/            # Reusable components
+        │   │   ├── Cards.jsx
+        │   │   ├── ProductInfoCard.jsx
+        │   │   ├── ChangePasswordModal.jsx
+        │   │   ├── Header/
+        │   │   │   └── Navbar.jsx
+        │   │   ├── buyer/
+        │   │   │   ├── BidModal.jsx
+        │   │   │   ├── AutoBidModal.jsx
+        │   │   │   ├── FilterModal.jsx
+        │   │   │   ├── OrderCard.jsx
+        │   │   │   ├── ProductReviews.jsx
+        │   │   │   └── Sellerbadge.jsx
+        │   │   └── seller/
+        │   │       ├── Analytics.jsx
+        │   │       ├── BidHistoryModal.jsx
+        │   │       ├── CreateListingModal.jsx
+        │   │       ├── ListingCard.jsx
+        │   │       ├── ManageOrder.jsx
+        │   │       ├── PerformanceMetrics.jsx
+        │   │       ├── RecentActivity.jsx
+        │   │       ├── SellerNavbar.jsx
+        │   │       ├── SellerSidebar.jsx
+        │   │       └── StatsCard.jsx
+        │   │
+        │   ├── Context/               # React Context
+        │   │   ├── Authcontext.jsx
+        │   │   └── SocketContext.jsx
+        │   │
+        │   ├── Layouts/               # Layout components
+        │   │   ├── Layout.jsx
+        │   │   └── UserLayout.jsx
+        │   │
+        │   ├── hooks/                 # Custom hooks
+        │   │   └── usePayment.js
+        │   │
+        │   ├── services/              # API services
+        │   │   ├── sellerservices.js
+        │   │   └── userservices.js
+        │   │
+        │   ├── API/                   # Axios API configuration
+        │   │   └── api.js
+        │   │
+        │   ├── utils/                 # Utility functions
+        │   │   └── product.js
+        │   │
+        │   ├── assets/                # Images, icons, etc.
+        │   ├── App.jsx                # Main App component
+        │   ├── App.css
+        │   ├── main.jsx               # React entry point
+        │   └── index.css
+        │
+        ├── public/                    # Static assets
+        ├── index.html                 # HTML template
+        ├── vite.config.js             # Vite configuration
+        ├── eslint.config.js           # ESLint configuration
+        ├── package.json               # Dependencies
+        └── README.md
 ```
 
 ---
 
-## REST API Endpoints
+## 🚀 Tech Stack
 
-### Authentication & User APIs
+### Backend
+- **Runtime:** Node.js
+- **Framework:** Express.js v5.1.0
+- **Database:** OracleDB v6.9.0
+- **Authentication:** JWT (jsonwebtoken v9.0.2)
+- **Real-time:** Socket.io v4.8.1
+- **Caching:** Redis v5.8.2
+- **Image Upload:** Cloudinary v2.7.0
+- **Email:** Nodemailer v7.0.6
+- **Password Hash:** Bcryptjs v3.0.2
+- **File Upload:** Multer v2.0.2
 
-- **POST `/register`**  
-  Register a new user.
-
-- **POST `/login`**  
-  Login user and set JWT cookie.
-
-- **POST `/logout`**  
-  Logout user (clears JWT cookie).
-
-- **POST `/getCurrentUser`**  
-  Get current authenticated user info.
-
-- **POST `/sendverificationCode`**  
-  Send email verification code.
-
-- **POST `/verifyCode`**  
-  Verify email with code.
-
-- **POST `/resendCode`**  
-  Resend verification code.
-
-- **POST `/updatePassword`**  
-  Change user password.
-
----
-
-### User Profile APIs
-
-- **POST `/user/uploadprofile`**  
-  Upload a new profile picture.  
-  *(multipart/form-data, field: `file`)*
-
-- **POST `/user/editprofile`**  
-  Edit profile picture.  
-  *(multipart/form-data, field: `file`)*
+### Frontend
+- **Framework:** React v19.1.1
+- **Build Tool:** Vite v7.1.2
+- **Routing:** React Router DOM v7.8.2
+- **Styling:** Tailwind CSS v4.1.12
+- **HTTP Client:** Axios v1.11.0
+- **Real-time:** Socket.io Client v4.8.1
+- **Animation:** Framer Motion v12.23.12
+- **Charts:** Recharts v3.3.0
+- **Notifications:** React Hot Toast v2.6.0
+- **Icons:** Lucide React v0.541.0
+- **Spreadsheet:** XLSX v0.18.5
 
 ---
 
-### Seller APIs
+## ⚙️ Installation & Setup
 
-- **POST `/seller/addProduct`**  
-  Add a new product (with images).  
-  *(multipart/form-data, fields: `title`, `description`, `category`, `stock`, `product_type`, `amount`, files: `files[]`)*
+### Prerequisites
+- Node.js (v14 or higher)
+- OracleDB
+- Redis
+- npm or yarn
 
----
+### Backend Setup
 
-### Cart APIs
-
-- **(Defined in `cart.js` and `cart.Controller.js`)**  
-  Endpoints for cart operations (add, remove, update items, etc.).
-
----
-
-## Error Handling
-
-All endpoints return error responses with:
-```json
-{
-  "success": false,
-  "message": "Error message"
-}
-```
-
----
-
-## Middleware
-
-- **auth.middleware.js**  
-  Protects routes, checks JWT authentication.
-
-- **multer.middleware.js**  
-  Handles file uploads (images, profile pictures).
-
----
-
-## Services
-
-- **cloudinary.js**  
-  Handles image uploads to Cloudinary.
-
-- **emailService.js**  
-  Sends verification and notification emails.
-
----
-
-## Environment Variables
-
-Configure your `.env` file with:
-```
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-DB_CONNECTION_STRING=your_db_connection_string
-JWT_SECRET=your_jwt_secret
-CLOUDINARY_API_KEY=your_cloudinary_key
-CLOUDINARY_API_SECRET=your_cloudinary_secret
-CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-EMAIL_SERVICE_API_KEY=your_email_api_key
-```
-
----
-
-## Getting Started
-
-1. Install dependencies:
+1. **Navigate to backend directory:**
+   ```bash
+   cd backend
    ```
+
+2. **Install dependencies:**
+   ```bash
    npm install
    ```
-2. Set up your `.env` file.
-3. Start the server:
+
+3. **Configure environment variables:**
+   Create a `.env` file in the backend directory with the following variables:
+   ```env
+   JWT_SECRET=your_jwt_secret_here
+   REDIS_URL=redis://localhost:6379
+   EMAIL_USER=your_email@gmail.com
+   EMAIL_PASS=your_app_password
+   CLOUDINARY_API_KEY=your_cloudinary_api_key
+   CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+   CLOUDINARY_CLOUD_NAME=your_cloud_name
+   ORACLE_USER=system
+   ORACLE_PASSWORD=your_oracle_password
+   ORACLE_CONNECT_STRING=localhost/XEPDB1
+   ESEWA_SECRET_KEY=your_esewa_secret_key
+   ESEWA_GATEWAY_URL=https://rc-epay.esewa.com.np
+   ESEWA_PRODUCT_CODE=EPAYTEST
+   FRONTEND_URL=http://localhost:5173
    ```
-   node index.js
+
+4. **Start the backend server:**
+   ```bash
+   npm start
    ```
-4. Access API endpoints via your preferred HTTP client.
+   Server runs on `http://localhost:3000` (or configured port)
+
+### Frontend Setup
+
+1. **Navigate to frontend directory:**
+   ```bash
+   cd frontend/bidwaza
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+   Frontend runs on `http://localhost:5173`
+
+4. **Build for production:**
+   ```bash
+   npm run build
+   ```
 
 ---
 
-## Notes
+## 📡 API Endpoints
 
-- All profile and seller endpoints require authentication.
-- File uploads use `multipart/form-data`.
-- See the `Controller`, `Routes`, and `middleware` folders for implementation details.
-- For database setup, refer to `Db/Db.js`.
+### Authentication (`/auth`)
+- `POST /register` - User registration
+- `POST /login` - User login
+- `POST /logout` - User logout
+- `POST /sendverificationCode` - Send email verification
+- `POST /verifyCode` - Verify email code
+- `POST /resendCode` - Resend verification code
+- `POST /forgetpassword` - Initiate password reset
+- `POST /verify-password-reset-code` - Verify reset code
+- `POST /reset-password` - Reset password
+- `PUT /update-password` - Update password (authenticated)
+- `POST /getCurrentUser` - Get current user info (authenticated)
+
+### User Management (`/user`)
+- Manage user profiles
+- Update user information
+- View user details
+
+### Seller Management (`/seller`)
+- Create and manage product listings
+- View seller dashboard
+- Manage seller profile
+
+### Auction (`/auction`)
+- `POST /placeBid` - Place a bid on an auction
+- `POST /registerForProduct` - Register for auction participation
+- `GET /auction/:itemId` - Get auction details with bid history
+- `GET /myBids` - Get user's active bids
+- `GET /wins` - Get won auctions
+- `POST /setAutoBid` - Set automatic bidding
+- `GET /getAutoBid` - Get auto bid details
+- `POST /cancelAutoBid` - Cancel automatic bid
+- `GET /notifications` - Get auction notifications
+- `PUT /setNotificationAsRead` - Mark notifications as read
+
+### Shopping Cart (`/cart`)
+- Add items to cart
+- Remove items from cart
+- Update cart quantities
+- View cart items
+
+### Payments (`/esewa`)
+- Integrate with eSeWa payment gateway
+- Handle payment callbacks
+- Verify payment status
+
+### Wallet (`/wallet`)
+- View wallet balance
+- Add funds to wallet
+- Transaction history
+- Manage wallet credits
+
+### Analytics (`/analytics`)
+- Seller performance metrics
+- Sales statistics
+- Bid history analytics
+- Revenue reports
+
+---
+
+## 🔐 Authentication Flow
+
+1. **User Registration:**
+   - User provides email, password, name, and interests
+   - Password is hashed with bcryptjs
+   - Verification email is sent
+
+2. **Email Verification:**
+   - User receives 6-digit verification code
+   - Code must be verified within 24 hours
+
+3. **Login:**
+   - User credentials validated against database
+   - JWT token generated and stored in cookies
+   - Token required for protected endpoints
+
+4. **Password Reset:**
+   - User requests password reset with email
+   - Reset code sent via email
+   - Code verified before allowing new password
+
+---
+
+## 🎯 Key Features
+
+### For Buyers
+- Browse and search for auction items
+- Place bids with auto-bidding capability
+- Add items to shopping cart
+- Checkout with multiple payment options
+- View bidding history and won auctions
+- Digital wallet for faster transactions
+- Order tracking and management
+- Product reviews and ratings
+- User profile management
+
+### For Sellers
+- Create and manage product listings
+- Real-time bid monitoring
+- Comprehensive analytics dashboard
+- Performance metrics and statistics
+- Order management system
+- Seller badge and reputation system
+- Revenue tracking
+- Bid history analysis
+- Recent activity monitoring
+
+### General
+- Real-time WebSocket communication
+- Responsive design with Tailwind CSS
+- Email notifications
+- Secure JWT authentication
+- Cloudinary image management
+- Redis caching
+- eSeWa payment integration
+
+---
+
+## 🔄 Real-time Features
+
+The application uses **Socket.io** for real-time communication:
+
+- **Live Bidding Updates:** Instant bid notifications
+- **Auction Status:** Real-time auction state changes
+- **Notifications:** Push notifications for bid activities
+- **Active Users:** See who's bidding in real-time
+
+---
+
+## 📊 Database Schema (OracleDB)
+
+Key tables include:
+- **users** - User accounts and profiles
+- **sellers** - Seller information
+- **products** - Product/auction listings
+- **bids** - Bidding history
+- **cart** - Shopping cart items
+- **orders** - Order information
+- **wallet** - Wallet transactions
+- **notifications** - User notifications
+
+---
+
+## 🛠️ Development Scripts
+
+### Backend
+```bash
+npm start          # Start with nodemon (development)
+npm test           # Run tests
+```
+
+### Frontend
+```bash
+npm run dev        # Start development server
+npm run build      # Build for production
+npm run preview    # Preview production build
+npm run lint       # Run ESLint
+```
+
+---
+
+## 📦 Dependencies Summary
+
+### Backend Key Dependencies
+- **express** - Web framework
+- **oracledb** - Oracle database driver
+- **jsonwebtoken** - JWT authentication
+- **bcryptjs** - Password hashing
+- **socket.io** - Real-time communication
+- **multer** - File upload
+- **cloudinary** - Image hosting
+- **nodemailer** - Email service
+- **redis** - Caching
+
+### Frontend Key Dependencies
+- **react** - UI library
+- **react-router-dom** - Routing
+- **axios** - HTTP client
+- **tailwindcss** - Styling
+- **socket.io-client** - Real-time client
+- **framer-motion** - Animations
+- **recharts** - Charts
+- **react-hot-toast** - Notifications
+
+---
+
+## 🔒 Security Features
+
+- JWT-based authentication with cookie storage
+- Password hashing with bcryptjs
+- CORS configuration for trusted origins
+- Input validation on all endpoints
+- Protected routes with authentication middleware
+- Secure eSeWa payment integration
+- Email verification for account protection
+- Password reset with email verification
+
+---
+
+## 🚀 Deployment
+
+### Backend Deployment
+1. Set all environment variables in production
+2. Configure OracleDB connection for production
+3. Set `NODE_ENV=production`
+4. Deploy using services like Heroku, AWS, or DigitalOcean
+
+### Frontend Deployment
+1. Build the application: `npm run build`
+2. Upload `dist/` folder to hosting service
+3. Configure API endpoint for production backend
+4. Deploy using Vercel, Netlify, or GitHub Pages
+
+---
+
+## 📝 Environment Variables
+
+### Backend `.env`
+```
+JWT_SECRET - Secret key for JWT tokens
+REDIS_URL - Redis connection URL
+EMAIL_USER - Gmail account for sending emails
+EMAIL_PASS - Gmail app-specific password
+CLOUDINARY_API_KEY - Cloudinary API key
+CLOUDINARY_API_SECRET - Cloudinary API secret
+CLOUDINARY_CLOUD_NAME - Cloudinary cloud name
+ORACLE_USER - Oracle database username
+ORACLE_PASSWORD - Oracle database password
+ORACLE_CONNECT_STRING - Oracle connection string
+ESEWA_SECRET_KEY - eSeWa payment gateway secret
+ESEWA_GATEWAY_URL - eSeWa API endpoint
+ESEWA_PRODUCT_CODE - eSeWa product code
+FRONTEND_URL - Frontend application URL
+```
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+---
+
+## 📄 License
+
+ISC License
+
+---
+
+## 👥 Author
+
+Bidwaza Development Team
+
+---
+
+## 📞 Support
+
+For issues or questions:
+- Open an issue on the repository
+- Contact: bidwaza@gmail.com
+
+---
+
+## 🎉 Features Coming Soon
+
+- Advanced seller rating system
+- Auction scheduling
+- Bulk product uploads
+- API rate limiting
+- SMS notifications
+- Mobile application
+- Cryptocurrency payments
+- International shipping support
+
+---
+
+**Last Updated:** December 2025
+
+Happy Bidding! 🏆
 
 ---
