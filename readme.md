@@ -390,15 +390,207 @@ The application uses **Socket.io** for real-time communication:
 
 ## 📊 Database Schema (OracleDB)
 
-Key tables include:
-- **users** - User accounts and profiles
-- **sellers** - Seller information
-- **products** - Product/auction listings
-- **bids** - Bidding history
-- **cart** - Shopping cart items
-- **orders** - Order information
-- **wallet** - Wallet transactions
-- **notifications** - User notifications
+### Core Tables
+
+#### **users**
+User account information and authentication
+```
+ID                    - NOT NULL NUMBER (Primary Key)
+FIRST_NAME            - NOT NULL VARCHAR2(50)
+LAST_NAME             - NOT NULL VARCHAR2(50)
+EMAIL                 - NOT NULL VARCHAR2(100) (Unique)
+PASSWORD              - NOT NULL VARCHAR2(200) (Hashed)
+INTERESTS             - VARCHAR2(200)
+PROFILE_PICTURE_URL   - VARCHAR2(500)
+CREATED_AT            - TIMESTAMP(6)
+UPDATED_AT            - TIMESTAMP(6)
+```
+
+#### **products**
+Product/auction listings
+```
+ITEM_ID               - NOT NULL NUMBER (Primary Key)
+SELLER_ID             - NOT NULL NUMBER (FK: users.ID)
+TITLE                 - NOT NULL VARCHAR2(100)
+DESCRIPTION           - CLOB
+CATEGORY              - VARCHAR2(50)
+STOCK                 - NUMBER
+PRODUCT_TYPE          - NOT NULL VARCHAR2(20)
+AMOUNT                - NOT NULL NUMBER(10,2)
+STATUS                - VARCHAR2(20)
+STARTING_PRICE        - NUMBER(10,2)
+CURRENT_PRICE         - NUMBER(10,2)
+START_TIME            - TIMESTAMP(6)
+END_TIME              - TIMESTAMP(6)
+REGISTRATION_END      - TIMESTAMP(6)
+CREATED_AT            - TIMESTAMP(6)
+UPDATED_AT            - TIMESTAMP(6)
+```
+
+#### **product_images**
+Product image storage
+```
+IMAGE_ID              - NOT NULL NUMBER (Primary Key)
+ITEM_ID               - NOT NULL NUMBER (FK: products.ITEM_ID)
+IMAGE_URL             - NOT NULL VARCHAR2(500)
+IS_PRIMARY            - CHAR(1)
+DISPLAY_ORDER         - NUMBER
+CREATED_AT            - TIMESTAMP(6)
+```
+
+### Auction & Bidding Tables
+
+#### **bids**
+Auction bidding history
+```
+BID_ID                - NOT NULL NUMBER (Primary Key)
+ITEM_ID               - NOT NULL NUMBER (FK: products.ITEM_ID)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+BID_AMOUNT            - NOT NULL NUMBER(10,2)
+BID_STATUS            - VARCHAR2(20)
+CREATED_AT            - TIMESTAMP(6)
+UPDATED_AT            - TIMESTAMP(6)
+```
+
+#### **auction_registrations**
+User registration for auction participation
+```
+REGISTRATION_ID       - NOT NULL NUMBER (Primary Key)
+ITEM_ID               - NOT NULL NUMBER (FK: products.ITEM_ID)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+REGISTERED_AT         - TIMESTAMP(6)
+IS_ACTIVE             - CHAR(1)
+```
+
+#### **auto_bids**
+Automatic bidding configuration
+```
+AUTO_BID_ID           - NOT NULL NUMBER (Primary Key)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+ITEM_ID               - NOT NULL NUMBER (FK: products.ITEM_ID)
+MAX_BID_AMOUNT        - NOT NULL NUMBER(10,2)
+INCREMENT_AMOUNT      - NUMBER(10,2)
+IS_ACTIVE             - CHAR(1)
+CREATED_AT            - TIMESTAMP(6)
+UPDATED_AT            - TIMESTAMP(6)
+```
+
+#### **auction_winners**
+Auction winners and winning bids
+```
+WINNER_ID             - NOT NULL NUMBER (Primary Key)
+ITEM_ID               - NOT NULL NUMBER (FK: products.ITEM_ID)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+WINNING_BID           - NOT NULL NUMBER(10,2)
+PAYMENT_STATUS        - VARCHAR2(20)
+PAYMENT_DATE          - TIMESTAMP(6)
+CREATED_AT            - TIMESTAMP(6)
+```
+
+### Shopping & Orders Tables
+
+#### **cart_items**
+Shopping cart management
+```
+CART_ITEM_ID          - NOT NULL NUMBER (Primary Key)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+ITEM_ID               - NOT NULL NUMBER (FK: products.ITEM_ID)
+QUANTITY              - NUMBER
+ADDED_AT              - TIMESTAMP(6)
+```
+
+#### **orders**
+Order information and status tracking
+```
+ORDER_ID              - NOT NULL NUMBER (Primary Key)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+ORDER_NUMBER          - NOT NULL VARCHAR2(50) (Unique)
+TOTAL_AMOUNT          - NOT NULL NUMBER(10,2)
+ORDER_STATUS          - VARCHAR2(20)
+PAYMENT_STATUS        - VARCHAR2(20)
+ESEWA_TXN_ID          - VARCHAR2(100)
+PAYMENT_METHOD        - VARCHAR2(50)
+ORDER_DATE            - TIMESTAMP(6)
+UPDATED_AT            - TIMESTAMP(6)
+```
+
+#### **order_items**
+Individual items within orders
+```
+ORDER_ITEM_ID         - NOT NULL NUMBER (Primary Key)
+ORDER_ID              - NOT NULL NUMBER (FK: orders.ORDER_ID)
+ITEM_ID               - NOT NULL NUMBER (FK: products.ITEM_ID)
+SELLER_ID             - NOT NULL NUMBER (FK: users.ID)
+PRODUCT_TITLE         - NOT NULL VARCHAR2(100)
+PRICE_AT_PURCHASE     - NOT NULL NUMBER(10,2)
+QUANTITY              - NOT NULL NUMBER
+SUBTOTAL              - NOT NULL NUMBER(10,2)
+CREATED_AT            - TIMESTAMP(6)
+```
+
+### Wallet & Payment Tables
+
+#### **wallets**
+User wallet account balances
+```
+WALLET_ID             - NOT NULL NUMBER (Primary Key)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+BALANCE               - NUMBER(12,2)
+LAST_UPDATED          - TIMESTAMP(6)
+```
+
+#### **wallet_topup_history**
+Wallet transaction history
+```
+TRANSACTION_ID        - NOT NULL NUMBER (Primary Key)
+WALLET_ID             - NOT NULL NUMBER (FK: wallets.WALLET_ID)
+AMOUNT                - NOT NULL NUMBER(12,2)
+TRANSACTION_TYPE      - VARCHAR2(50)
+PAYMENT_METHOD        - VARCHAR2(100)
+STATUS                - VARCHAR2(50)
+REFERENCE_ID          - VARCHAR2(255)
+CREATED_AT            - TIMESTAMP(6)
+```
+
+#### **wallet_holds**
+Wallet amount holds for active bids
+```
+HOLD_ID               - NOT NULL NUMBER (Primary Key)
+WALLET_ID             - NOT NULL NUMBER (FK: wallets.WALLET_ID)
+BID_ID                - NOT NULL NUMBER (FK: bids.BID_ID)
+AMOUNT                - NOT NULL NUMBER(10,2)
+STATUS                - VARCHAR2(20)
+CREATED_AT            - TIMESTAMP(6)
+RELEASED_AT           - TIMESTAMP(6)
+```
+
+### Notifications & Reviews Tables
+
+#### **notifications**
+User notifications and alerts
+```
+NOTIFICATION_ID       - NOT NULL NUMBER (Primary Key)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+TYPE                  - NOT NULL VARCHAR2(50)
+TITLE                 - NOT NULL VARCHAR2(200)
+MESSAGE               - NOT NULL VARCHAR2(500)
+ITEM_ID               - NUMBER (FK: products.ITEM_ID)
+IS_READ               - CHAR(1)
+CREATED_AT            - TIMESTAMP(6)
+```
+
+#### **ratings_reviews**
+Product reviews and ratings
+```
+REVIEW_ID             - NOT NULL NUMBER (Primary Key)
+ORDER_ITEM_ID         - NOT NULL NUMBER (FK: order_items.ORDER_ITEM_ID)
+PRODUCT_ID            - NOT NULL NUMBER (FK: products.ITEM_ID)
+USER_ID               - NOT NULL NUMBER (FK: users.ID)
+RATING                - NOT NULL NUMBER(1) (1-5)
+REVIEW_TEXT           - CLOB
+CREATED_AT            - NOT NULL TIMESTAMP(6)
+UPDATED_AT            - NOT NULL TIMESTAMP(6)
+```
 
 ---
 
