@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
-import { Crown, Edit3, Eye, Trash2, MoreVertical, Plus, Minus, Trophy, Gavel, Clock, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { Crown, Edit3, Eye, Trash2, MoreVertical, Plus, Minus, Trophy, Gavel, Clock, X, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react"
 import BidHistoryModal from './BidHistoryModal'
+import { AnimatePresence, motion } from 'framer-motion'
 
 // Image Gallery Modal Component
 function ImageGalleryModal({ isOpen, onClose, images, title }) {
   const [currentIndex, setCurrentIndex] = useState(0)
-  
   if (!isOpen) return null
 
   const handlePrevious = () => {
@@ -264,6 +264,7 @@ function ListingCard({ listing, onDelete, onStatusChange, onStockUpdate, onEdit,
   const [showBidModal, setShowBidModal] = useState(false)
   const [showGalleryModal, setShowGalleryModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   const getStatusColor = (status) => {
     const colors = {
@@ -301,12 +302,15 @@ function ListingCard({ listing, onDelete, onStatusChange, onStockUpdate, onEdit,
   }
 
   const handleDelete = () => {
-    if (window.confirm('Are you sure you want to delete this listing?')) {
-      if (onDelete) {
-        onDelete(listing.id)
-      }
-    }
+    setShowConfirmModal(true)
     setShowDropdown(false)
+  }
+
+  const confirmDelete = () => {
+    if (onDelete) {
+      onDelete(listing.id)
+    }
+    setShowConfirmModal(false)
   }
 
   const handleStockChange = async (change) => {
@@ -585,15 +589,58 @@ function ListingCard({ listing, onDelete, onStatusChange, onStockUpdate, onEdit,
         listing={listing}
       />
 
-    
-
-       {/* Bid History Modal */}
+      {/* Bid History Modal */}
       <BidHistoryModal
         isOpen={showBidModal}
         onClose={() => setShowBidModal(false)}
         listing={listing}
         bidHistory={bidHistory}
-        />
+      />
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 max-w-md w-full"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <AlertCircle className="w-8 h-8 text-yellow-400" />
+                <h3 className="text-xl font-bold text-white">Confirm product delete</h3>
+              </div>
+
+              <p className="text-white/80 mb-6">
+                Are you sure you want to delete the product?
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2.5 text-white font-semibold rounded-xl transition-all bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600"
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }

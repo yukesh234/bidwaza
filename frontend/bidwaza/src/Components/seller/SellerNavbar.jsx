@@ -61,10 +61,7 @@ function SellerNavbar({ onCreateClick }) {
               New Listing
             </button>
 
-            <button className='relative p-2 text-white/60 hover:text-white transition-colors'>
-              <Bell className='w-6 h-6' />
-              <span className='absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full'></span>
-            </button>
+          
 
             <div className='relative -mr-12' ref={dropdownRef}>
               <button
