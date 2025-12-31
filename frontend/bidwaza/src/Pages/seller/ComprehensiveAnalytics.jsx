@@ -22,6 +22,7 @@ function AuctionStatistics({ auctionStats }) {
     if (intensity > 0.1) return 'bg-orange-200';
     return 'bg-orange-100';
   };
+ 
 
   // Find max count for color scaling
   const allCounts = auctionStats.bidActivity?.flatMap(day => 
@@ -181,6 +182,7 @@ function ComprehensiveAnalytics({ stats }) {
     totalBids: 0,
     bidActivity: []
   });
+   const [selectedMonth, setSelectedMonth] = useState(null);
 
   // Fetch all analytics data
   const fetchAnalytics = async (range) => {
@@ -205,6 +207,7 @@ function ComprehensiveAnalytics({ stats }) {
       }
       if (performanceResponse.success) {
         setProductPerformanceData(performanceResponse.data);
+        console.log(productPerformanceData);
       }
       if (categoryResponse.success) {
         setCategoryData(categoryResponse.data);
@@ -456,7 +459,7 @@ function ComprehensiveAnalytics({ stats }) {
         )}
       </div>
 
-      {/* Product Performance & Category Distribution */}
+{/* Product Performance & Category Distribution */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Product Performance Area Chart */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
@@ -477,7 +480,17 @@ function ComprehensiveAnalytics({ stats }) {
           {productPerformanceData.length > 0 ? (
             <div data-chart="product-performance">
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={productPerformanceData}>
+                <AreaChart 
+                  data={productPerformanceData}
+                  onMouseMove={(e) => {
+                    if (e && e.activeLabel) {
+                      setSelectedMonth(e.activeLabel);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setSelectedMonth(null);
+                  }}
+                >
                   <defs>
                     <linearGradient id="colorProduct1" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.6}/>
@@ -513,30 +526,73 @@ function ComprehensiveAnalytics({ stats }) {
                     itemStyle={{ color: '#fff' }}
                     labelStyle={{ color: '#fff' }}
                     cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                    formatter={(value, name) => {
+                      return [`${value} units sold`, name];
+                    }}
                   />
-                  <Legend content={<CustomLegend />} />
-                  {/* Dynamically render areas for each product */}
+                  <Legend 
+                    content={({ payload }) => {
+                      const colors = ['#06b6d4', '#d946ef', '#22c55e', '#f59e0b', '#ef4444'];
+                      return (
+                        <div className="flex flex-wrap justify-center gap-3 mt-3">
+                          {payload && payload.map((entry, index) => {
+                            const isHidden = hiddenProducts[entry.value];
+                            return (
+                              <button
+                                key={`legend-${index}`}
+                                onClick={() => {
+                                  setHiddenProducts(prev => ({
+                                    ...prev,
+                                    [entry.value]: !prev[entry.value]
+                                  }));
+                                }}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                                  isHidden 
+                                    ? 'bg-white/5 opacity-40 hover:opacity-60' 
+                                    : 'bg-white/10 hover:bg-white/15'
+                                }`}
+                              >
+                                <div
+                                  className="w-3 h-3 rounded-sm flex-shrink-0"
+                                  style={{ backgroundColor: colors[index % colors.length] }}
+                                />
+                                <span className="text-white text-sm font-medium">
+                                  {entry.value}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    }}
+                  />
+                  {/* Dynamically render areas for each product with natural curves */}
                   {productPerformanceData[0] && Object.keys(productPerformanceData[0])
                     .filter(key => key !== 'month')
                     .map((key, index) => {
                       const colors = ['#06b6d4', '#d946ef', '#22c55e', '#f59e0b', '#ef4444'];
                       const colorIndex = index % colors.length;
-                      return !hiddenProducts[key] && (
+                      return (
                         <Area 
                           key={key}
-                          type="monotone" 
+                          type="monotone"
                           dataKey={key} 
                           stroke={colors[colorIndex]} 
                           strokeWidth={2}
-                          fillOpacity={1} 
-                          fill={`url(#colorProduct${colorIndex + 1})`} 
+                          fillOpacity={0.3}
+                          fill={`url(#colorProduct${colorIndex + 1})`}
+                          hide={hiddenProducts[key]}
                         />
                       );
                     })
                   }
                 </AreaChart>
               </ResponsiveContainer>
-              <p className="text-white/60 text-xs text-center mt-2">Click legend items to show/hide products</p>
+              <p className="text-white/60 text-xs text-center mt-2">
+                {selectedMonth 
+                  ? `Showing sales for ${selectedMonth}` 
+                  : 'Click legend items to show/hide products • Hover to see monthly sales'}
+              </p>
             </div>
           ) : (
             <div className="h-64 flex items-center justify-center text-white/40">
@@ -617,6 +673,7 @@ function ComprehensiveAnalytics({ stats }) {
           )}
         </div>
       </div>
+     
 
       {/* Top Products & Auction Stats */}
       <div className="grid lg:grid-cols-2 gap-6">

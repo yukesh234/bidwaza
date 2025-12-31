@@ -405,6 +405,239 @@ export async function getMonthlySales(req, res) {
   }
 }
 
+// export async function getProductPerformance(req, res) {
+//   let connection;
+//   try {
+//     const sellerId = req.user.ID;
+//     const { timeRange = '6months' } = req.query;
+
+//     const monthsMap = {
+//       '1month': 1,
+//       '3months': 3,
+//       '6months': 6,
+//       '1year': 12
+//     };
+//     const months = monthsMap[timeRange] || 6;
+
+//     connection = await getConnection();
+
+//     // Get top 5 products and their monthly sales
+//     const topProductsQuery = `
+//       SELECT DISTINCT p.ITEM_ID, p.TITLE
+//       FROM products p
+//       INNER JOIN order_items oi ON p.ITEM_ID = oi.ITEM_ID
+//       INNER JOIN orders o ON oi.ORDER_ID = o.ORDER_ID
+//       WHERE p.SELLER_ID = :sellerId
+//         AND o.ORDER_STATUS = 'COMPLETED'
+//         AND o.ORDER_DATE >= ADD_MONTHS(SYSDATE, -:months)
+//       GROUP BY p.ITEM_ID, p.TITLE
+//       ORDER BY SUM(oi.QUANTITY) DESC
+//       FETCH FIRST 5 ROWS ONLY
+//     `;
+
+//     const topProductsResult = await connection.execute(
+//       topProductsQuery,
+//       { sellerId, months },
+//       { outFormat: oracledb.OUT_FORMAT_OBJECT }
+//     );
+
+//     const topProducts = topProductsResult.rows;
+
+//     // Get monthly sales for each product
+//     const performanceQuery = `
+//       WITH month_range AS (
+//         SELECT 
+//           ADD_MONTHS(TRUNC(SYSDATE, 'MM'), -LEVEL + 1) AS month_date
+//         FROM DUAL
+//         CONNECT BY LEVEL <= :months
+//       )
+//       SELECT 
+//         TO_CHAR(mr.month_date, 'Mon') AS month,
+//         p.TITLE AS product_name,
+//         NVL(SUM(oi.QUANTITY), 0) AS quantity
+//       FROM month_range mr
+//       CROSS JOIN (
+//         SELECT ITEM_ID, TITLE 
+//         FROM products 
+//         WHERE ITEM_ID IN (${topProducts.map((_, i) => `:prod${i}`).join(',')})
+//       ) p
+//       LEFT JOIN order_items oi ON p.ITEM_ID = oi.ITEM_ID
+//       LEFT JOIN orders o ON oi.ORDER_ID = o.ORDER_ID 
+//         AND o.ORDER_STATUS = 'COMPLETED'
+//         AND TO_CHAR(o.ORDER_DATE, 'YYYY-MM') = TO_CHAR(mr.month_date, 'YYYY-MM')
+//       GROUP BY mr.month_date, p.TITLE
+//       ORDER BY mr.month_date, p.TITLE
+//     `;
+
+//     const binds = { months };
+//     topProducts.forEach((prod, i) => {
+//       binds[`prod${i}`] = prod.ITEM_ID;
+//     });
+
+//     const performanceResult = await connection.execute(
+//       performanceQuery,
+//       binds,
+//       { outFormat: oracledb.OUT_FORMAT_OBJECT }
+//     );
+
+//     // Transform data to format needed by recharts
+//     const monthlyData = {};
+//     performanceResult.rows.forEach(row => {
+//       const month = row.MONTH;
+//       if (!monthlyData[month]) {
+//         monthlyData[month] = { month };
+//       }
+//       monthlyData[month][row.PRODUCT_NAME] = parseInt(row.QUANTITY) || 0;
+//     });
+
+//     const productPerformanceData = Object.values(monthlyData);
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Product performance data fetched successfully",
+//       data: productPerformanceData
+//     });
+
+//   } catch (error) {
+//     console.error('Get product performance error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch product performance",
+//       error: error.message
+//     });
+//   } finally {
+//     if (connection) {
+//       try {
+//         await connection.close();
+//       } catch (err) {
+//         console.error('Connection close error:', err);
+//       }
+//     }
+//   }
+// }
+
+
+// export async function getProductPerformance(req, res) {
+//   let connection;
+//   try {
+//     const sellerId = req.user.ID;
+//     const { timeRange = '6months' } = req.query;
+
+//     const monthsMap = {
+//       '1month': 1,
+//       '3months': 3,
+//       '6months': 6,
+//       '1year': 12
+//     };
+//     const months = monthsMap[timeRange] || 6;
+
+//     connection = await getConnection();
+
+//     // Get top 5 products and their monthly sales
+//     const topProductsQuery = `
+//       SELECT p.ITEM_ID, p.TITLE
+//       FROM products p
+//       INNER JOIN order_items oi ON p.ITEM_ID = oi.ITEM_ID
+//       INNER JOIN orders o ON oi.ORDER_ID = o.ORDER_ID
+//       WHERE p.SELLER_ID = :sellerId
+//         AND o.ORDER_STATUS = 'COMPLETED'
+//         AND o.ORDER_DATE >= ADD_MONTHS(SYSDATE, -:months)
+//       GROUP BY p.ITEM_ID, p.TITLE
+//       ORDER BY SUM(oi.QUANTITY) DESC
+//       FETCH FIRST 5 ROWS ONLY
+//     `;
+
+//     const topProductsResult = await connection.execute(
+//       topProductsQuery,
+//       { sellerId, months },
+//       { outFormat: oracledb.OUT_FORMAT_OBJECT }
+//     );
+
+//     const topProducts = topProductsResult.rows;
+
+//     // Get monthly sales for each product
+//     const performanceQuery = `
+//       WITH month_range AS (
+//         SELECT 
+//           ADD_MONTHS(TRUNC(SYSDATE, 'MM'), -LEVEL + 1) AS month_date,
+//           LEVEL AS month_order
+//         FROM DUAL
+//         CONNECT BY LEVEL <= :months
+//       ),
+//       top_products_list AS (
+//         SELECT ITEM_ID, TITLE 
+//         FROM products 
+//         WHERE ITEM_ID IN (${topProducts.map((_, i) => `:prod${i}`).join(',')})
+//       ),
+//       monthly_sales AS (
+//         SELECT 
+//           TO_CHAR(mr.month_date, 'Mon') AS month,
+//           mr.month_order,
+//           p.TITLE AS product_name,
+//           NVL(SUM(oi.QUANTITY), 0) AS quantity
+//         FROM month_range mr
+//         CROSS JOIN top_products_list p
+//         LEFT JOIN order_items oi ON p.ITEM_ID = oi.ITEM_ID
+//         LEFT JOIN orders o ON oi.ORDER_ID = o.ORDER_ID 
+//           AND o.ORDER_STATUS = 'COMPLETED'
+//           AND TRUNC(o.ORDER_DATE, 'MM') = mr.month_date
+//         GROUP BY mr.month_date, mr.month_order, p.TITLE
+//       )
+//       SELECT 
+//         month,
+//         product_name,
+//         quantity
+//       FROM monthly_sales
+//       ORDER BY month_order, product_name
+//     `;
+
+//     const binds = { months };
+//     topProducts.forEach((prod, i) => {
+//       binds[`prod${i}`] = prod.ITEM_ID;
+//     });
+
+//     const performanceResult = await connection.execute(
+//       performanceQuery,
+//       binds,
+//       { outFormat: oracledb.OUT_FORMAT_OBJECT }
+//     );
+
+//     // Transform data to format needed by recharts
+//     const monthlyData = {};
+//     performanceResult.rows.forEach(row => {
+//       const month = row.MONTH;
+//       if (!monthlyData[month]) {
+//         monthlyData[month] = { month };
+//       }
+//       monthlyData[month][row.PRODUCT_NAME] = parseInt(row.QUANTITY) || 0;
+//     });
+
+//     const productPerformanceData = Object.values(monthlyData);
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Product performance data fetched successfully",
+//       data: productPerformanceData
+//     });
+
+//   } catch (error) {
+//     console.error('Get product performance error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch product performance",
+//       error: error.message
+//     });
+//   } finally {
+//     if (connection) {
+//       try {
+//         await connection.close();
+//       } catch (err) {
+//         console.error('Connection close error:', err);
+//       }
+//     }
+//   }
+// }
+
 export async function getProductPerformance(req, res) {
   let connection;
   try {
@@ -421,9 +654,9 @@ export async function getProductPerformance(req, res) {
 
     connection = await getConnection();
 
-    // Get top 5 products and their monthly sales
+    // Get top 5 products by total sales
     const topProductsQuery = `
-      SELECT DISTINCT p.ITEM_ID, p.TITLE
+      SELECT p.ITEM_ID, p.TITLE
       FROM products p
       INNER JOIN order_items oi ON p.ITEM_ID = oi.ITEM_ID
       INNER JOIN orders o ON oi.ORDER_ID = o.ORDER_ID
@@ -443,28 +676,37 @@ export async function getProductPerformance(req, res) {
 
     const topProducts = topProductsResult.rows;
 
-    // Get monthly sales for each product
+    if (topProducts.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No product performance data available",
+        data: []
+      });
+    }
+
+    // Get monthly sales for each product - simple and clean
     const performanceQuery = `
       WITH month_range AS (
         SELECT 
           ADD_MONTHS(TRUNC(SYSDATE, 'MM'), -LEVEL + 1) AS month_date
         FROM DUAL
         CONNECT BY LEVEL <= :months
+        ORDER BY 1
       )
       SELECT 
         TO_CHAR(mr.month_date, 'Mon') AS month,
         p.TITLE AS product_name,
-        NVL(SUM(oi.QUANTITY), 0) AS quantity
+        COALESCE(SUM(oi.QUANTITY), 0) AS quantity
       FROM month_range mr
       CROSS JOIN (
         SELECT ITEM_ID, TITLE 
         FROM products 
         WHERE ITEM_ID IN (${topProducts.map((_, i) => `:prod${i}`).join(',')})
       ) p
-      LEFT JOIN order_items oi ON p.ITEM_ID = oi.ITEM_ID
-      LEFT JOIN orders o ON oi.ORDER_ID = o.ORDER_ID 
+      LEFT JOIN orders o ON TRUNC(o.ORDER_DATE, 'MM') = mr.month_date
         AND o.ORDER_STATUS = 'COMPLETED'
-        AND TO_CHAR(o.ORDER_DATE, 'YYYY-MM') = TO_CHAR(mr.month_date, 'YYYY-MM')
+      LEFT JOIN order_items oi ON o.ORDER_ID = oi.ORDER_ID 
+        AND oi.ITEM_ID = p.ITEM_ID
       GROUP BY mr.month_date, p.TITLE
       ORDER BY mr.month_date, p.TITLE
     `;
