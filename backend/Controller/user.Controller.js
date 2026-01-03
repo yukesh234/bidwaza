@@ -1310,7 +1310,7 @@ export async function getOrderHistory(req, res) {
     for (let i = 0; i < ordersResult.rows.length; i++) {
       const order = ordersResult.rows[i];
       
-      // ⭐ FIX: Use DBMS_LOB.SUBSTR to convert CLOB to string
+      //  FIX: Use DBMS_LOB.SUBSTR to convert CLOB to string
       const itemsResult = await connection.execute(
         `SELECT 
           oi.ORDER_ITEM_ID,
@@ -1961,7 +1961,7 @@ export async function getBiddedProducts(req, res) {
   }
 }
 
-// Optional: Get bidded products with filtering
+
 export async function getBiddedProductsFiltered(req, res) {
   let connection;
   

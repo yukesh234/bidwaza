@@ -238,7 +238,7 @@ class AuctionService {
       }
 
       // 11. TRIGGER AUTO-BID CHECK (after successful bid)
-      // Schedule auto-bid processing after 10 seconds
+      // Schedule auto-bid processing after  seconds
       this.scheduleAutoBidCheck(itemId, userId, bidAmount, io);
 
       return {

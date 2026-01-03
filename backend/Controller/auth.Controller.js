@@ -104,7 +104,7 @@ async function register(req, res) {
   }
 }
 async function login  (req, res)  {
-  let connection; // Move this outside try block
+  let connection; 
   try {
     const { email, password } = req.body;
     
